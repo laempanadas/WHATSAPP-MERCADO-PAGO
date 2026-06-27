@@ -1,18 +1,23 @@
 {
-  "name": "node-express-api",
-  "description": "Simple api sample in Node",
+  "name": "whatsapp-mercado-pago",
+  "description": "API WhatsApp + Mercado Pago",
   "version": "1.0.0",
   "private": true,
-  "main": "index.js",
+  "main": "server.js",
   "type": "module",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
-    "dev": "nodemon index.js",
-    "start": "node index.js"
+    "dev": "nodemon server.js",
+    "start": "node server.js"
   },
   "author": "Google LLC",
   "license": "Apache-2.0",
   "dependencies": {
-    "express": "^4.21.2"
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "mercadopago": "^3.1.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
