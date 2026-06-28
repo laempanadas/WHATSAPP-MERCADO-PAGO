@@ -108,7 +108,7 @@ async function gerarLinkPagamento(telefone, carrinho, total, endereco) {
     baseUrl: process.env.BASE_URL,
   });
 
-  return sandboxInitPoint || initPoint;
+  return initPoint || sandboxInitPoint;
 }
 
 /**
