@@ -55,12 +55,19 @@ export function mensagemCardapio() {
  */
 export function mensagemResumoPedido(carrinho, total) {
   const linhas = carrinho
-    .map(
-      item =>
-        `• ${item.quantidade}x ${item.produto.title} — ${formatarPreco(
-          item.produto.price * item.quantidade
-        )}`
-    )
+    .map(item => {
+      let linha = `• ${item.quantidade}x ${item.produto.title} — ${formatarPreco(
+        item.produto.price * item.quantidade
+      )}`;
+      // Se for combo com sabores escolhidos, lista os sabores embaixo.
+      if (Array.isArray(item.sabores) && item.sabores.length > 0) {
+        const saboresTxt = item.sabores
+          .map(s => `   ↳ ${s.quantidade}x ${s.title}`)
+          .join('\n');
+        linha += `\n${saboresTxt}`;
+      }
+      return linha;
+    })
     .join('\n');
 
   return (
@@ -69,6 +76,98 @@ export function mensagemResumoPedido(carrinho, total) {
     `💰 *Total: ${formatarPreco(total)}*\n\n` +
     `✅ Digite *SIM* para confirmar e gerar o pagamento\n` +
     `❌ Digite *NÃO* para cancelar e recomeçar`
+  );
+}
+
+/**
+ * Pede ao cliente que escolha os sabores de um combo.
+ *
+ * @param {object} produto - o combo
+ * @param {number} faltam - quantas empanadas ainda faltam escolher
+ */
+export function mensagemPedirSaboresCombo(produto, faltam) {
+  return (
+    `🥟 *${produto.title}*\n\n` +
+    `Esse combo inclui *${faltam} empanadas* à sua escolha!\n\n` +
+    `Me diga os sabores e as quantidades. Exemplos:\n` +
+    `• _2 carne 2 frango_\n` +
+    `• _1 calabresa 1 atum 1 palmito 1 cheeseburger_\n\n` +
+    `Digite *CARDÁPIO* se quiser rever os sabores. 😉`
+  );
+}
+
+/**
+ * Avisa quantas empanadas ainda faltam para completar o combo.
+ *
+ * @param {object} produto
+ * @param {number} faltam
+ * @param {Array<{title: string, quantidade: number}>} escolhas
+ */
+export function mensagemSaboresFaltam(produto, faltam, escolhas) {
+  const jaEscolhidos =
+    escolhas && escolhas.length > 0
+      ? `Até agora:\n` +
+        escolhas.map(s => `• ${s.quantidade}x ${s.title}`).join('\n') +
+        `\n\n`
+      : '';
+  return (
+    `👍 Anotado!\n\n` +
+    jaEscolhidos +
+    `Ainda *faltam ${faltam} empanada(s)* para completar o *${produto.title}*.\n\n` +
+    `Quais sabores você quer? (ex: _2 carne_)`
+  );
+}
+
+/**
+ * Avisa que o cliente escolheu mais sabores do que o combo permite.
+ *
+ * @param {object} produto
+ * @param {number} excedente
+ */
+export function mensagemSaboresExcedido(produto, excedente) {
+  return (
+    `⚠️ Opa! Você escolheu *${excedente} empanada(s) a mais* do que o ` +
+    `*${produto.title}* permite.\n\n` +
+    `Por favor, mande os sabores de novo respeitando a quantidade do combo. 🙏`
+  );
+}
+
+/**
+ * Avisa que nenhum sabor de empanada válido foi reconhecido na mensagem
+ * (durante a escolha de sabores do combo).
+ */
+export function mensagemSaborComboNaoReconhecido() {
+  return (
+    `🤔 Não reconheci esses sabores.\n\n` +
+    `Para o combo, escolha apenas *empanadas* (ex: _2 carne 1 frango_).\n` +
+    `Digite *CARDÁPIO* para ver todos os sabores.`
+  );
+}
+
+/**
+ * Corpo do lembrete de pagamento pendente (usado no botão CTA).
+ *
+ * @param {number} total
+ */
+export function corpoLembretePagamento(total) {
+  return (
+    `😊 *Oi! Seu pedido está quase lá...*\n\n` +
+    `Notei que o pagamento de *${formatarPreco(total)}* ainda não foi concluído.\n\n` +
+    `É rapidinho! Toque no botão abaixo para finalizar e garantir suas empanadas quentinhas 🥟👇`
+  );
+}
+
+/**
+ * Lembrete de carrinho abandonado (cliente montou o pedido mas não confirmou).
+ *
+ * @param {number} total
+ */
+export function mensagemLembreteCarrinho(total) {
+  return (
+    `🥟 *Ainda está aí?*\n\n` +
+    `Seu pedido de *${formatarPreco(total)}* está montado e esperando por você!\n\n` +
+    `✅ Digite *SIM* para confirmar e finalizar\n` +
+    `❌ Digite *NÃO* para cancelar`
   );
 }
 
@@ -200,7 +299,18 @@ export function mensagemNotificacaoDono({ cliente, itens, total, referencia, end
     linhasItens =
       '\n📦 *Itens:*\n' +
       itens
-        .map(i => `• ${i.quantidade}x ${i.titulo || i.title || 'Item'}`)
+        .map(i => {
+          let linha = `• ${i.quantidade}x ${i.titulo || i.title || 'Item'}`;
+          // Mostra os sabores escolhidos quando for combo.
+          if (Array.isArray(i.sabores) && i.sabores.length > 0) {
+            linha +=
+              '\n' +
+              i.sabores
+                .map(s => `   ↳ ${s.quantidade}x ${s.titulo || s.title || 'Sabor'}`)
+                .join('\n');
+          }
+          return linha;
+        })
         .join('\n') +
       '\n';
   }
@@ -222,6 +332,12 @@ export default {
   mensagemCardapio,
   mensagemResumoPedido,
   mensagemItensNaoReconhecidos,
+  mensagemPedirSaboresCombo,
+  mensagemSaboresFaltam,
+  mensagemSaboresExcedido,
+  mensagemSaborComboNaoReconhecido,
+  corpoLembretePagamento,
+  mensagemLembreteCarrinho,
   mensagemLinkPagamento,
   mensagemCancelado,
   mensagemNaoEntendi,

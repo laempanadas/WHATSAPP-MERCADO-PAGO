@@ -14,6 +14,7 @@
 // Estados possíveis da conversa.
 export const ESTADOS = {
   INICIO: 'inicio',
+  AGUARDANDO_SABORES_COMBO: 'aguardando_sabores_combo',
   AGUARDANDO_CONFIRMACAO: 'aguardando_confirmacao',
   AGUARDANDO_ENDERECO: 'aguardando_endereco',
 };
@@ -44,6 +45,12 @@ export function obterSessao(telefone) {
     carrinho: [],
     total: 0,
     endereco: null,
+    // Combos aguardando escolha de sabores (cada item: {produto, quantidade, faltam, escolhas}).
+    combosPendentes: [],
+    // Itens já definidos enquanto coletamos os sabores dos combos.
+    carrinhoBase: [],
+    // Controle de lembrete de carrinho abandonado (evita lembrar mais de uma vez).
+    lembreteCarrinhoEnviado: false,
     atualizadoEm: agora,
   };
   sessoes.set(telefone, nova);
@@ -78,6 +85,7 @@ export function definirCarrinho(telefone, itens) {
     carrinho: itens,
     total,
     estado: ESTADOS.AGUARDANDO_CONFIRMACAO,
+    lembreteCarrinhoEnviado: false,
   });
 }
 
@@ -92,7 +100,20 @@ export function limparSessao(telefone) {
     carrinho: [],
     total: 0,
     endereco: null,
+    combosPendentes: [],
+    carrinhoBase: [],
+    lembreteCarrinhoEnviado: false,
   });
+}
+
+/**
+ * Retorna todas as sessões ativas (em memória).
+ * Usado pelo serviço de lembretes para detectar carrinhos abandonados.
+ *
+ * @returns {Array<object>}
+ */
+export function listarSessoes() {
+  return Array.from(sessoes.values());
 }
 
 /**
@@ -118,4 +139,5 @@ export default {
   atualizarSessao,
   definirCarrinho,
   limparSessao,
+  listarSessoes,
 };

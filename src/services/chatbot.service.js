@@ -3,7 +3,7 @@
  *
  * Orquestra a conversa por texto com o cliente no WhatsApp, combinando:
  *   - NLP (detecção de intenção e extração de itens)
- *   - estado da conversa (sessão / carrinho / endereço)
+ *   - estado da conversa (sessão / carrinho / combos / endereço)
  *   - geração do link de pagamento no Mercado Pago
  *   - templates de mensagem
  *
@@ -21,11 +21,17 @@ import {
   limparSessao,
   ESTADOS,
 } from './conversation.service.js';
+import { ehCombo, ehEmpanada } from '../data/products.js';
 import { criarPreferencia } from './payment.service.js';
+import { registrarPagamentoPendente } from './lembrete.service.js';
 import {
   mensagemCardapio,
   mensagemResumoPedido,
   mensagemItensNaoReconhecidos,
+  mensagemPedirSaboresCombo,
+  mensagemSaboresFaltam,
+  mensagemSaboresExcedido,
+  mensagemSaborComboNaoReconhecido,
   mensagemPedirEndereco,
   mensagemEnderecoIncompleto,
   corpoPagamento,
@@ -38,6 +44,32 @@ import {
 /** Helper: resposta de texto simples. */
 function texto(t) {
   return { tipo: 'texto', texto: t };
+}
+
+/**
+ * Agrupa itens iguais (mesmo produto) somando as quantidades.
+ *
+ * @param {Array<{produto: object, quantidade: number}>} itens
+ * @returns {Array<{produto: object, quantidade: number}>}
+ */
+function agruparItens(itens) {
+  const mapa = new Map();
+  for (const item of itens) {
+    const chave = item.produto.title;
+    if (mapa.has(chave)) {
+      mapa.get(chave).quantidade += item.quantidade;
+    } else {
+      mapa.set(chave, { produto: item.produto, quantidade: item.quantidade });
+    }
+  }
+  return Array.from(mapa.values());
+}
+
+/**
+ * Soma as quantidades de uma lista de escolhas/itens.
+ */
+function somarQuantidades(lista) {
+  return (lista || []).reduce((soma, i) => soma + (i.quantidade || 0), 0);
 }
 
 /**
@@ -54,6 +86,7 @@ function enderecoValido(endereco) {
 /**
  * Monta a referência externa (JSON compacto) para rastrear o pedido no webhook
  * do Mercado Pago. Inclui telefone, itens e endereço (resumido se necessário).
+ * Os sabores dos combos vão nos metadados (sem limite apertado), não aqui.
  */
 function montarReferencia(telefone, carrinho, total, endereco) {
   const payload = {
@@ -87,9 +120,28 @@ function montarReferencia(telefone, carrinho, total, endereco) {
 }
 
 /**
+ * Monta a lista detalhada de itens para os metadados do pagamento.
+ * Inclui os sabores escolhidos nos combos, para o dono ver na notificação.
+ */
+function montarItensMetadata(carrinho) {
+  return carrinho.map(item => {
+    const base = { titulo: item.produto.title, quantidade: item.quantidade };
+    if (Array.isArray(item.sabores) && item.sabores.length > 0) {
+      base.sabores = item.sabores.map(s => ({
+        titulo: s.title,
+        quantidade: s.quantidade,
+      }));
+    }
+    return base;
+  });
+}
+
+/**
  * Gera o link de pagamento do Mercado Pago para o carrinho atual.
  */
 async function gerarLinkPagamento(telefone, carrinho, total, endereco) {
+  // Para o Mercado Pago, cada combo é um único item (preço do combo);
+  // os sabores são apenas composição (vão nos metadados).
   const items = carrinho.map(item => ({
     title: item.produto.title,
     quantity: item.quantidade,
@@ -104,10 +156,12 @@ async function gerarLinkPagamento(telefone, carrinho, total, endereco) {
       customer_phone: telefone,
       source: 'whatsapp_chat',
       delivery_address: endereco || null,
+      order_items: montarItensMetadata(carrinho),
     },
     baseUrl: process.env.BASE_URL,
   });
 
+  // Em produção usamos o initPoint; o sandbox só é usado se for o único disponível.
   return initPoint || sandboxInitPoint;
 }
 
@@ -117,6 +171,11 @@ async function gerarLinkPagamento(telefone, carrinho, total, endereco) {
 async function finalizarPedido(sessao) {
   const { telefone, carrinho, total, endereco } = sessao;
   const link = await gerarLinkPagamento(telefone, carrinho, total, endereco);
+
+  // Registra o pagamento como PENDENTE para o serviço de lembretes.
+  // Se o cliente não pagar em alguns minutos, recebe um lembrete automático.
+  registrarPagamentoPendente(telefone, { link, total });
+
   limparSessao(telefone);
   return {
     tipo: 'botao_url',
@@ -125,6 +184,140 @@ async function finalizarPedido(sessao) {
     url: link,
     rodape: 'Pagamento seguro via Mercado Pago',
   };
+}
+
+/**
+ * Inicia (ou continua) a coleta de sabores do primeiro combo pendente.
+ * Retorna a mensagem pedindo os sabores do combo da vez.
+ */
+function pedirSaboresDoComboAtual(combosPendentes) {
+  const atual = combosPendentes[0];
+  const restante = atual.total - somarQuantidades(atual.escolhas);
+  return texto(mensagemPedirSaboresCombo(atual.produto, restante));
+}
+
+/**
+ * Trata a mensagem do cliente quando estamos coletando os sabores de um combo.
+ */
+function processarSaboresCombo(telefone, sessao, mensagem, intencao) {
+  // Permite cancelar ou ver o cardápio sem perder o progresso.
+  if (intencao === 'cancelar') {
+    limparSessao(telefone);
+    return texto(mensagemCancelado());
+  }
+  if (intencao === 'saudacao' || intencao === 'ajuda') {
+    // Mostra o cardápio mas mantém o estado de coleta de sabores.
+    return texto(mensagemCardapio());
+  }
+
+  const combosPendentes = sessao.combosPendentes || [];
+  if (combosPendentes.length === 0) {
+    // Estado inconsistente — recomeça.
+    limparSessao(telefone);
+    return texto(mensagemNaoEntendi());
+  }
+
+  const atual = combosPendentes[0];
+  const restante = atual.total - somarQuantidades(atual.escolhas);
+
+  // Extrai apenas empanadas (sabores válidos para combo).
+  const itens = extrairItens(mensagem);
+  const empanadas = itens.filter(i => i.produto && ehEmpanada(i.produto));
+
+  if (empanadas.length === 0) {
+    if (intencao === 'confirmar') {
+      // Cliente tentou confirmar antes de terminar de escolher.
+      return texto(mensagemSaboresFaltam(atual.produto, restante, atual.escolhas));
+    }
+    return texto(mensagemSaborComboNaoReconhecido());
+  }
+
+  const adicionando = somarQuantidades(empanadas);
+  if (adicionando > restante) {
+    return texto(mensagemSaboresExcedido(atual.produto, adicionando - restante));
+  }
+
+  // Adiciona os sabores escolhidos (agrupando por título).
+  for (const emp of empanadas) {
+    const existente = atual.escolhas.find(e => e.title === emp.produto.title);
+    if (existente) {
+      existente.quantidade += emp.quantidade;
+    } else {
+      atual.escolhas.push({ title: emp.produto.title, quantidade: emp.quantidade });
+    }
+  }
+
+  const novoRestante = atual.total - somarQuantidades(atual.escolhas);
+
+  if (novoRestante > 0) {
+    atualizarSessao(telefone, { combosPendentes });
+    return texto(mensagemSaboresFaltam(atual.produto, novoRestante, atual.escolhas));
+  }
+
+  // Combo atual completo — move para o carrinho base como linha de combo.
+  const carrinhoBase = sessao.carrinhoBase || [];
+  carrinhoBase.push({
+    produto: atual.produto,
+    quantidade: atual.quantidade,
+    sabores: atual.escolhas,
+  });
+  combosPendentes.shift();
+
+  if (combosPendentes.length > 0) {
+    // Ainda há combos para configurar.
+    atualizarSessao(telefone, { carrinhoBase, combosPendentes });
+    return pedirSaboresDoComboAtual(combosPendentes);
+  }
+
+  // Todos os combos prontos — finaliza o carrinho e mostra o resumo.
+  const sessaoFinal = definirCarrinho(telefone, carrinhoBase);
+  atualizarSessao(telefone, { combosPendentes: [], carrinhoBase: [] });
+  return texto(mensagemResumoPedido(sessaoFinal.carrinho, sessaoFinal.total));
+}
+
+/**
+ * Processa um novo pedido (lista de itens), separando combos de itens normais.
+ */
+function processarNovoPedido(telefone, mensagem, desconhecidos, validos) {
+  const combos = validos.filter(i => ehCombo(i.produto));
+  const regulares = validos.filter(i => !ehCombo(i.produto));
+
+  const carrinhoBase = agruparItens(regulares);
+
+  if (combos.length > 0) {
+    // Para cada combo, precisamos coletar (comboSize x quantidade) sabores.
+    const combosAgrupados = agruparItens(combos);
+    const combosPendentes = combosAgrupados.map(c => ({
+      produto: c.produto,
+      quantidade: c.quantidade,
+      total: Number(c.produto.comboSize) * c.quantidade,
+      escolhas: [],
+    }));
+
+    atualizarSessao(telefone, {
+      estado: ESTADOS.AGUARDANDO_SABORES_COMBO,
+      carrinhoBase,
+      combosPendentes,
+      lembreteCarrinhoEnviado: false,
+    });
+
+    let resposta = pedirSaboresDoComboAtual(combosPendentes).texto;
+    if (desconhecidos.length > 0) {
+      resposta = mensagemItensNaoReconhecidos(desconhecidos) + '\n\n' + resposta;
+    }
+    return texto(resposta);
+  }
+
+  // Sem combos — fluxo normal: define o carrinho e pede confirmação.
+  const sessaoAtualizada = definirCarrinho(telefone, carrinhoBase);
+  let resposta = mensagemResumoPedido(
+    sessaoAtualizada.carrinho,
+    sessaoAtualizada.total
+  );
+  if (desconhecidos.length > 0) {
+    resposta = mensagemItensNaoReconhecidos(desconhecidos) + '\n\n' + resposta;
+  }
+  return texto(resposta);
 }
 
 /**
@@ -146,11 +339,17 @@ export async function processarMensagemTexto(telefone, mensagem) {
   });
 
   // ---------------------------------------------------------------------------
+  // ETAPA: coletando sabores de combo(s).
+  // ---------------------------------------------------------------------------
+  if (sessao.estado === ESTADOS.AGUARDANDO_SABORES_COMBO) {
+    return processarSaboresCombo(telefone, sessao, mensagem, intencao);
+  }
+
+  // ---------------------------------------------------------------------------
   // ETAPA: aguardando endereço de entrega.
   // Quando o cliente já confirmou o pedido, a próxima mensagem é o endereço.
   // ---------------------------------------------------------------------------
   if (sessao.estado === ESTADOS.AGUARDANDO_ENDERECO) {
-    // Permite cancelar ou recomeçar mesmo nessa etapa.
     if (intencao === 'cancelar') {
       limparSessao(telefone);
       return texto(mensagemCancelado());
@@ -213,32 +412,7 @@ export async function processarMensagemTexto(telefone, mensagem) {
         return texto(mensagemItensNaoReconhecidos(desconhecidos));
       }
 
-      // Agrupa itens iguais (mesmo produto) somando quantidades.
-      const mapa = new Map();
-      for (const item of validos) {
-        const chave = item.produto.title;
-        if (mapa.has(chave)) {
-          mapa.get(chave).quantidade += item.quantidade;
-        } else {
-          mapa.set(chave, { produto: item.produto, quantidade: item.quantidade });
-        }
-      }
-      const carrinho = Array.from(mapa.values());
-
-      const sessaoAtualizada = definirCarrinho(telefone, carrinho);
-
-      let resposta = mensagemResumoPedido(
-        sessaoAtualizada.carrinho,
-        sessaoAtualizada.total
-      );
-
-      // Avisa sobre itens não reconhecidos, se houver.
-      if (desconhecidos.length > 0) {
-        resposta =
-          mensagemItensNaoReconhecidos(desconhecidos) + '\n\n' + resposta;
-      }
-
-      return texto(resposta);
+      return processarNovoPedido(telefone, mensagem, desconhecidos, validos);
     }
 
     default:
