@@ -151,6 +151,25 @@ gcloud run deploy whatsappmercadopago \
 
 ---
 
+## 🔔 Lembretes Automáticos (Recuperação de Vendas)
+
+O bot envia lembretes automáticos para recuperar vendas:
+- **Pagamento pendente** (~15 min): reenvia o botão de pagamento se o cliente não pagou.
+- **Carrinho abandonado** (~10 min): cutuca o cliente que parou no meio do pedido.
+
+➡️ Para funcionar de forma confiável, configure o Cloud Run com **min-instances = 1**.
+Detalhes e passo a passo em [`LEMBRETES_AUTOMATICOS.md`](./LEMBRETES_AUTOMATICOS.md).
+
+---
+
+## 🥟 Combos com Sabores à Escolha
+
+Quando o cliente pede um combo (ex.: *Combo 4 Empanadas*), o bot pergunta
+quais sabores ele quer (ex.: _2 carne 2 frango_) antes de fechar o pedido.
+Os sabores aparecem no resumo do cliente e na notificação do dono.
+
+---
+
 ## 📊 Próximas Melhorias
 
 - [ ] Painel de pedidos (Google Sheets ou dashboard web)

@@ -152,6 +152,7 @@ const PRODUTOS = [
     currency_id: 'BRL',
     categoria: 'combos',
     descricao: '4 empanadas + Coca-Cola 600ml',
+    comboSize: 4,
     ids: ['combo-coca'],
     keywords: ['combo coca-cola', 'combo coca', 'combo refrigerante'],
   },
@@ -161,6 +162,7 @@ const PRODUTOS = [
     currency_id: 'BRL',
     categoria: 'combos',
     descricao: '8 empanadas assadas à sua escolha',
+    comboSize: 8,
     ids: ['combo-familia-8'],
     keywords: ['combo familia', 'combo 8', 'combo oito', 'combo familia 8'],
   },
@@ -170,6 +172,7 @@ const PRODUTOS = [
     currency_id: 'BRL',
     categoria: 'combos',
     descricao: '4 empanadas à sua escolha',
+    comboSize: 4,
     ids: ['combo-4'],
     keywords: ['combo quatro', 'combo 4', 'combo 4 empanadas', 'combo casal'],
   },
@@ -312,6 +315,27 @@ export function buscarProdutoPorTermo(termo) {
  */
 export function listarProdutos() {
   return PRODUTOS;
+}
+
+/**
+ * Indica se o produto é uma empanada (sabor válido para escolher em combos).
+ * São consideradas empanadas as categorias 'salgadas' e 'doces'.
+ *
+ * @param {object} produto
+ * @returns {boolean}
+ */
+export function ehEmpanada(produto) {
+  return !!produto && (produto.categoria === 'salgadas' || produto.categoria === 'doces');
+}
+
+/**
+ * Indica se o produto é um combo que exige escolha de sabores.
+ *
+ * @param {object} produto
+ * @returns {boolean}
+ */
+export function ehCombo(produto) {
+  return !!produto && Number(produto.comboSize) > 0;
 }
 
 /**

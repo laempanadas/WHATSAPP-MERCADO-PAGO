@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { buscarPagamento } from '../services/payment.service.js';
 import { enviarMensagemWhatsApp } from '../services/whatsapp.service.js';
 import { mensagemNotificacaoDono } from '../services/messages.service.js';
+import { marcarPago } from '../services/lembrete.service.js';
 
 const router = Router();
 
@@ -19,6 +20,21 @@ function extrairDadosPedido(paymentInfo) {
   const externalReference = paymentInfo.external_reference;
   const metadata = paymentInfo.metadata || {};
 
+  // Os metadados trazem a lista detalhada de itens, incluindo os sabores
+  // escolhidos nos combos. Quando disponível, é a fonte mais rica.
+  const itensMeta = Array.isArray(metadata.order_items)
+    ? metadata.order_items.map(i => ({
+        titulo: i.titulo || i.title || null,
+        quantidade: i.quantidade || i.quantity || 1,
+        sabores: Array.isArray(i.sabores)
+          ? i.sabores.map(s => ({
+              titulo: s.titulo || s.title || null,
+              quantidade: s.quantidade || s.quantity || 1,
+            }))
+          : undefined,
+      }))
+    : null;
+
   if (externalReference) {
     const valor = String(externalReference).trim();
 
@@ -27,7 +43,7 @@ function extrairDadosPedido(paymentInfo) {
       try {
         const dados = JSON.parse(valor);
         // Normaliza os itens (podem vir como {id,t,q} ou {id,q}).
-        const itens = Array.isArray(dados.items)
+        const itensRef = Array.isArray(dados.items)
           ? dados.items.map(i => ({
               titulo: i.t || i.titulo || null,
               quantidade: i.q || i.quantidade || 1,
@@ -38,7 +54,7 @@ function extrairDadosPedido(paymentInfo) {
           ref: dados.ref || null,
           total: typeof dados.total === 'number' ? dados.total : null,
           endereco: dados.addr || metadata.delivery_address || null,
-          itens,
+          itens: itensMeta || itensRef,
         };
       } catch (e) {
         console.warn('external_reference não é um JSON válido, usando como telefone.', e.message);
@@ -51,7 +67,7 @@ function extrairDadosPedido(paymentInfo) {
       ref: null,
       total: null,
       endereco: metadata.delivery_address || null,
-      itens: [],
+      itens: itensMeta || [],
     };
   }
 
@@ -60,7 +76,7 @@ function extrairDadosPedido(paymentInfo) {
     ref: null,
     total: null,
     endereco: metadata.delivery_address || null,
-    itens: [],
+    itens: itensMeta || [],
   };
 }
 
@@ -98,6 +114,11 @@ router.post('/webhook/mercadopago', async (req, res) => {
 
     if (status === 'approved') {
       const { phone, ref, total, itens, endereco } = extrairDadosPedido(paymentInfo);
+
+      // 0) Marca o pagamento como concluído (cancela lembretes pendentes).
+      if (phone) {
+        marcarPago(phone);
+      }
 
       // 1) Confirmação para o CLIENTE.
       if (phone) {
