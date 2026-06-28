@@ -102,6 +102,16 @@ export function extrairItens(texto) {
     .replace(/\s+/g, ' ')
     .trim();
 
+  // Apelidos de produtos que contêm números: convertemos para formas SEM
+  // dígito, para o número não ser confundido com a quantidade do pedido.
+  // Ex.: "combo 4" -> "combo quatro", "coca 2l" -> "coca grande".
+  t = t
+    .replace(/combo\s*8\b/g, 'combo familia')
+    .replace(/combo\s*4\b/g, 'combo quatro')
+    .replace(/coca\s*2\s*l(itros|itro)?\b/g, 'coca grande')
+    .replace(/\s+/g, ' ')
+    .trim();
+
   const itens = [];
   const consumidos = new Set();
 
