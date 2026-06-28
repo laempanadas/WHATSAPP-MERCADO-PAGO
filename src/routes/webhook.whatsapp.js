@@ -64,8 +64,8 @@ router.post('/webhook/whatsapp', async (req, res) => {
     const textoMsg = extrairTextoDoPayload(req.body);
 
     if (textoMsg) {
-      const { customerPhone, texto } = textoMsg;
-      const resposta = await processarMensagemTexto(customerPhone, texto);
+      const { customerPhone, texto, nomePerfil } = textoMsg;
+      const resposta = await processarMensagemTexto(customerPhone, texto, nomePerfil);
 
       // A resposta pode ser texto simples ou um botão de URL (pagamento).
       if (resposta?.tipo === 'botao_url') {

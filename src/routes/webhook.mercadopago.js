@@ -74,6 +74,7 @@ function extrairDadosPedido(paymentInfo) {
           : [];
         return {
           phone: dados.phone || metadata.customer_phone || null,
+          nome: dados.nome || metadata.customer_name || null,
           ref: dados.ref || null,
           total: typeof dados.total === 'number' ? dados.total : null,
           endereco: dados.addr || metadata.delivery_address || null,
@@ -87,6 +88,7 @@ function extrairDadosPedido(paymentInfo) {
     // Caso contrário, trata como telefone (compatibilidade com fluxo antigo).
     return {
       phone: valor,
+      nome: metadata.customer_name || null,
       ref: null,
       total: null,
       endereco: metadata.delivery_address || null,
@@ -96,6 +98,7 @@ function extrairDadosPedido(paymentInfo) {
 
   return {
     phone: metadata.customer_phone || null,
+    nome: metadata.customer_name || null,
     ref: null,
     total: null,
     endereco: metadata.delivery_address || null,
@@ -106,8 +109,9 @@ function extrairDadosPedido(paymentInfo) {
 /**
  * Monta a mensagem de confirmação enviada ao cliente via WhatsApp.
  */
-function montarMensagemConfirmacao({ ref, total, endereco }) {
-  let mensagem = '✅ Pagamento aprovado!\nSeu pedido foi confirmado com sucesso. 🥟';
+function montarMensagemConfirmacao({ nome, ref, total, endereco }) {
+  const saudacao = nome ? `✅ ${nome}, pagamento aprovado!` : '✅ Pagamento aprovado!';
+  let mensagem = `${saudacao}\nSeu pedido foi confirmado com sucesso. 🥟`;
   if (typeof total === 'number') {
     mensagem += `\n\nTotal: R$ ${total.toFixed(2)}`;
   }
@@ -153,7 +157,7 @@ router.post('/webhook/mercadopago', async (req, res) => {
     console.log(`Pagamento ${paymentId}: ${status}`);
 
     if (status === 'approved') {
-      const { phone, ref, total, itens, endereco } = extrairDadosPedido(paymentInfo);
+      const { phone, nome, ref, total, itens, endereco } = extrairDadosPedido(paymentInfo);
 
       // 3) Sem telefone do cliente, este pagamento NÃO veio do nosso fluxo de
       // pedidos (pode ser teste/cobrança avulsa). Não notifica para evitar
@@ -167,7 +171,7 @@ router.post('/webhook/mercadopago', async (req, res) => {
       marcarPago(phone);
 
       // Confirmação para o CLIENTE.
-      await enviarMensagemWhatsApp(phone, montarMensagemConfirmacao({ ref, total, endereco }));
+      await enviarMensagemWhatsApp(phone, montarMensagemConfirmacao({ nome, ref, total, endereco }));
       console.log(`Confirmação enviada para ${phone}`);
 
       // Notificação para o DONO da loja (se ADMIN_PHONE estiver configurado).
@@ -178,6 +182,7 @@ router.post('/webhook/mercadopago', async (req, res) => {
             donoTelefone,
             mensagemNotificacaoDono({
               cliente: phone,
+              nome,
               itens,
               total,
               referencia: ref,

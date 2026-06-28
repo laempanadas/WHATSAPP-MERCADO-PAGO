@@ -43,7 +43,8 @@ export function extrairPedidoDoPayload(body) {
  * @returns {{customerPhone: string, texto: string}|null}
  */
 export function extrairTextoDoPayload(body) {
-  const message = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+  const value = body?.entry?.[0]?.changes?.[0]?.value;
+  const message = value?.messages?.[0];
 
   if (!message) {
     return null;
@@ -51,9 +52,12 @@ export function extrairTextoDoPayload(body) {
 
   const customerPhone = message.from;
 
+  // Nome do perfil do WhatsApp (quando disponível). A Meta envia em "contacts".
+  const nomePerfil = value?.contacts?.[0]?.profile?.name || null;
+
   // Mensagem de texto comum.
   if (message.type === 'text' && message.text?.body) {
-    return { customerPhone, texto: message.text.body };
+    return { customerPhone, texto: message.text.body, nomePerfil };
   }
 
   // Resposta de botão interativo (texto do botão).
@@ -62,7 +66,7 @@ export function extrairTextoDoPayload(body) {
       message.interactive?.button_reply?.title ||
       message.interactive?.list_reply?.title;
     if (titulo) {
-      return { customerPhone, texto: titulo };
+      return { customerPhone, texto: titulo, nomePerfil };
     }
   }
 

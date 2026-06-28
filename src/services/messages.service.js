@@ -187,6 +187,13 @@ export function mensagemItensNaoReconhecidos(desconhecidos) {
 /**
  * Mensagem pedindo o endereço de entrega (após confirmar o pedido).
  */
+export function mensagemPedirNome() {
+  return (
+    `😊 *Quase lá!*\n\n` +
+    `Como podemos te chamar? Me diga o seu *nome*, por favor.`
+  );
+}
+
 export function mensagemPedirEndereco() {
   return (
     `📍 *Endereço de entrega*\n\n` +
@@ -293,7 +300,7 @@ export function mensagemNadaParaConfirmar() {
  *
  * @param {object} dados
  */
-export function mensagemNotificacaoDono({ cliente, itens, total, referencia, endereco }) {
+export function mensagemNotificacaoDono({ cliente, nome, itens, total, referencia, endereco }) {
   let linhasItens = '';
   if (Array.isArray(itens) && itens.length > 0) {
     linhasItens =
@@ -317,7 +324,8 @@ export function mensagemNotificacaoDono({ cliente, itens, total, referencia, end
 
   return (
     `🔔 *NOVO PEDIDO PAGO!*\n\n` +
-    `👤 Cliente: ${cliente || 'não informado'}\n` +
+    `👤 Cliente: ${nome ? `${nome}` : 'não informado'}\n` +
+    `📱 WhatsApp: ${cliente || 'não informado'}\n` +
     (referencia ? `🧾 Pedido: ${referencia}\n` : '') +
     linhasItens +
     (endereco ? `\n📍 *Entrega:* ${endereco}\n` : '') +
@@ -336,6 +344,7 @@ export default {
   mensagemSaboresFaltam,
   mensagemSaboresExcedido,
   mensagemSaborComboNaoReconhecido,
+  mensagemPedirNome,
   corpoLembretePagamento,
   mensagemLembreteCarrinho,
   mensagemLinkPagamento,

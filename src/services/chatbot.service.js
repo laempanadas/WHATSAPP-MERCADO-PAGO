@@ -32,6 +32,7 @@ import {
   mensagemSaboresFaltam,
   mensagemSaboresExcedido,
   mensagemSaborComboNaoReconhecido,
+  mensagemPedirNome,
   mensagemPedirEndereco,
   mensagemEnderecoIncompleto,
   corpoPagamento,
@@ -84,14 +85,51 @@ function enderecoValido(endereco) {
 }
 
 /**
+ * Valida se o texto enviado parece um nome de pessoa.
+ * Critério simples: pelo menos 2 letras e sem parecer um endereço/número.
+ */
+function nomeValido(nome) {
+  if (!nome) return false;
+  const limpo = nome.trim();
+  const letras = (limpo.match(/[a-zA-ZÀ-ÿ]/g) || []).length;
+  return letras >= 2 && limpo.length <= 60;
+}
+
+/**
+ * Limpa o nome do perfil (remove emojis/excesso) para uso interno.
+ */
+function limparNome(nome) {
+  if (!nome) return null;
+  const limpo = String(nome).replace(/\s+/g, ' ').trim();
+  return limpo.length >= 2 ? limpo.slice(0, 60) : null;
+}
+
+/**
+ * Após a confirmação do pedido, decide o próximo passo:
+ *  - se já temos o nome (informado ou vindo do perfil do WhatsApp), pula direto
+ *    para o endereço;
+ *  - senão, pede o nome ao cliente.
+ */
+function avancarAposConfirmacao(telefone, sessao) {
+  const nome = sessao.nome || limparNome(sessao.nomePerfil);
+  if (nome) {
+    atualizarSessao(telefone, { nome, estado: ESTADOS.AGUARDANDO_ENDERECO });
+    return texto(mensagemPedirEndereco());
+  }
+  atualizarSessao(telefone, { estado: ESTADOS.AGUARDANDO_NOME });
+  return texto(mensagemPedirNome());
+}
+
+/**
  * Monta a referência externa (JSON compacto) para rastrear o pedido no webhook
  * do Mercado Pago. Inclui telefone, itens e endereço (resumido se necessário).
  * Os sabores dos combos vão nos metadados (sem limite apertado), não aqui.
  */
-function montarReferencia(telefone, carrinho, total, endereco) {
+function montarReferencia(telefone, carrinho, total, endereco, nome) {
   const payload = {
     src: 'wpp_chat',
     phone: telefone,
+    nome: nome || null,
     total,
     addr: endereco || null,
     items: carrinho.map(i => ({
@@ -139,7 +177,7 @@ function montarItensMetadata(carrinho) {
 /**
  * Gera o link de pagamento do Mercado Pago para o carrinho atual.
  */
-async function gerarLinkPagamento(telefone, carrinho, total, endereco) {
+async function gerarLinkPagamento(telefone, carrinho, total, endereco, nome) {
   // Para o Mercado Pago, cada combo é um único item (preço do combo);
   // os sabores são apenas composição (vão nos metadados).
   const items = carrinho.map(item => ({
@@ -151,9 +189,10 @@ async function gerarLinkPagamento(telefone, carrinho, total, endereco) {
 
   const { initPoint, sandboxInitPoint } = await criarPreferencia({
     items,
-    externalReference: montarReferencia(telefone, carrinho, total, endereco),
+    externalReference: montarReferencia(telefone, carrinho, total, endereco, nome),
     metadata: {
       customer_phone: telefone,
+      customer_name: nome || null,
       source: 'whatsapp_chat',
       delivery_address: endereco || null,
       order_items: montarItensMetadata(carrinho),
@@ -169,8 +208,8 @@ async function gerarLinkPagamento(telefone, carrinho, total, endereco) {
  * Finaliza o pedido: gera o pagamento e retorna a resposta com botão.
  */
 async function finalizarPedido(sessao) {
-  const { telefone, carrinho, total, endereco } = sessao;
-  const link = await gerarLinkPagamento(telefone, carrinho, total, endereco);
+  const { telefone, carrinho, total, endereco, nome } = sessao;
+  const link = await gerarLinkPagamento(telefone, carrinho, total, endereco, nome);
 
   // Registra o pagamento como PENDENTE para o serviço de lembretes.
   // Se o cliente não pagar em alguns minutos, recebe um lembrete automático.
@@ -327,15 +366,23 @@ function processarNovoPedido(telefone, mensagem, desconhecidos, validos) {
  * @param {string} mensagem
  * @returns {Promise<object>} resposta estruturada (ver topo do arquivo)
  */
-export async function processarMensagemTexto(telefone, mensagem) {
+export async function processarMensagemTexto(telefone, mensagem, nomePerfil) {
   const sessao = obterSessao(telefone);
   const intencao = detectarIntencao(mensagem);
+
+  // Guarda o nome do perfil do WhatsApp (se veio), para usar como nome do cliente.
+  const perfilLimpo = limparNome(nomePerfil);
+  if (perfilLimpo && sessao.nomePerfil !== perfilLimpo) {
+    atualizarSessao(telefone, { nomePerfil: perfilLimpo });
+    sessao.nomePerfil = perfilLimpo;
+  }
 
   console.log('[chatbot] mensagem recebida', {
     telefone,
     mensagem,
     intencao,
     estado: sessao.estado,
+    nomePerfil: sessao.nomePerfil,
   });
 
   // ---------------------------------------------------------------------------
@@ -343,6 +390,27 @@ export async function processarMensagemTexto(telefone, mensagem) {
   // ---------------------------------------------------------------------------
   if (sessao.estado === ESTADOS.AGUARDANDO_SABORES_COMBO) {
     return processarSaboresCombo(telefone, sessao, mensagem, intencao);
+  }
+
+  // ---------------------------------------------------------------------------
+  // ETAPA: aguardando o nome do cliente.
+  // Só caímos aqui quando o nome não veio do perfil do WhatsApp.
+  // ---------------------------------------------------------------------------
+  if (sessao.estado === ESTADOS.AGUARDANDO_NOME) {
+    if (intencao === 'cancelar') {
+      limparSessao(telefone);
+      return texto(mensagemCancelado());
+    }
+
+    if (!nomeValido(mensagem)) {
+      return texto(
+        '🤔 Não entendi o nome. Pode me dizer só o seu *nome*, por favor? (ex: _Maria_)'
+      );
+    }
+
+    const nome = limparNome(mensagem);
+    atualizarSessao(telefone, { nome, estado: ESTADOS.AGUARDANDO_ENDERECO });
+    return texto(mensagemPedirEndereco());
   }
 
   // ---------------------------------------------------------------------------
@@ -399,9 +467,8 @@ export async function processarMensagemTexto(telefone, mensagem) {
       ) {
         return texto(mensagemNadaParaConfirmar());
       }
-      // Avança para a etapa de coleta do endereço.
-      atualizarSessao(telefone, { estado: ESTADOS.AGUARDANDO_ENDERECO });
-      return texto(mensagemPedirEndereco());
+      // Avança: pede o nome (se não tivermos) ou já vai para o endereço.
+      return avancarAposConfirmacao(telefone, sessao);
     }
 
     case 'pedido': {
