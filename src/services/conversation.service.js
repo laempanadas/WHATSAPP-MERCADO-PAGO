@@ -15,6 +15,7 @@
 export const ESTADOS = {
   INICIO: 'inicio',
   AGUARDANDO_CONFIRMACAO: 'aguardando_confirmacao',
+  AGUARDANDO_ENDERECO: 'aguardando_endereco',
 };
 
 // Tempo de expiração da sessão (30 minutos).
@@ -42,6 +43,7 @@ export function obterSessao(telefone) {
     estado: ESTADOS.INICIO,
     carrinho: [],
     total: 0,
+    endereco: null,
     atualizadoEm: agora,
   };
   sessoes.set(telefone, nova);
@@ -89,6 +91,7 @@ export function limparSessao(telefone) {
     estado: ESTADOS.INICIO,
     carrinho: [],
     total: 0,
+    endereco: null,
   });
 }
 

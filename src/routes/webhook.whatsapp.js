@@ -4,7 +4,10 @@ import {
   extrairTextoDoPayload,
 } from '../services/order.service.js';
 import { criarPreferenciaPagamento } from '../services/payment.service.js';
-import { enviarMensagemWhatsApp } from '../services/whatsapp.service.js';
+import {
+  enviarMensagemWhatsApp,
+  enviarBotaoUrlWhatsApp,
+} from '../services/whatsapp.service.js';
 import { processarMensagemTexto } from '../services/chatbot.service.js';
 
 const router = Router();
@@ -63,7 +66,18 @@ router.post('/webhook/whatsapp', async (req, res) => {
     if (textoMsg) {
       const { customerPhone, texto } = textoMsg;
       const resposta = await processarMensagemTexto(customerPhone, texto);
-      await enviarMensagemWhatsApp(customerPhone, resposta);
+
+      // A resposta pode ser texto simples ou um botão de URL (pagamento).
+      if (resposta?.tipo === 'botao_url') {
+        await enviarBotaoUrlWhatsApp(customerPhone, {
+          corpo: resposta.corpo,
+          textoBotao: resposta.textoBotao,
+          url: resposta.url,
+          rodape: resposta.rodape,
+        });
+      } else {
+        await enviarMensagemWhatsApp(customerPhone, resposta.texto);
+      }
       return;
     }
 
