@@ -7,6 +7,29 @@ import { marcarPago } from '../services/lembrete.service.js';
 const router = Router();
 
 /**
+ * Memória dos pagamentos já processados (evita notificação duplicada).
+ *
+ * O Mercado Pago costuma disparar o webhook MAIS DE UMA VEZ para o mesmo
+ * pagamento (ex.: payment.created e depois payment.updated). Sem proteção,
+ * o dono receberia "NOVO PEDIDO PAGO" repetido. Guardamos o id do pagamento
+ * com a hora; ids antigos são limpos automaticamente.
+ */
+const pagamentosProcessados = new Map();
+const JANELA_DEDUPE_MS = 6 * 60 * 60 * 1000; // 6 horas
+
+function jaProcessado(paymentId) {
+  const id = String(paymentId);
+  const agora = Date.now();
+  // Limpa entradas antigas para não crescer indefinidamente.
+  for (const [k, t] of pagamentosProcessados.entries()) {
+    if (agora - t > JANELA_DEDUPE_MS) pagamentosProcessados.delete(k);
+  }
+  if (pagamentosProcessados.has(id)) return true;
+  pagamentosProcessados.set(id, agora);
+  return false;
+}
+
+/**
  * Extrai os dados do pedido a partir do external_reference do pagamento.
  *
  * Suporta dois formatos:
@@ -100,11 +123,28 @@ function montarMensagemConfirmacao({ ref, total, endereco }) {
 
 router.post('/webhook/mercadopago', async (req, res) => {
   try {
+    // 1) Só nos interessam notificações de PAGAMENTO.
+    // O Mercado Pago também envia avisos de outros tipos (ex.: 'merchant_order',
+    // 'plan', 'subscription'). Sem este filtro, esses avisos geravam pedidos
+    // falsos ("Cliente: não informado").
+    const tipo =
+      req.body?.type || req.query?.type || req.query?.topic || null;
+    if (tipo && tipo !== 'payment') {
+      console.log(`Webhook ignorado (tipo: ${tipo})`);
+      return res.status(200).send('Ignorado.');
+    }
+
     const paymentId =
-      req.body?.data?.id || req.body?.payment_id || req.query?.['data.id'];
+      req.body?.data?.id || req.body?.payment_id || req.query?.['data.id'] || req.query?.id;
 
     if (!paymentId) {
       return res.status(200).send('Sem payment_id.');
+    }
+
+    // 2) Evita processar o MESMO pagamento duas vezes (o MP reenvia o webhook).
+    if (jaProcessado(paymentId)) {
+      console.log(`Pagamento ${paymentId} já processado, ignorando duplicado.`);
+      return res.status(200).send('Duplicado.');
     }
 
     const paymentInfo = await buscarPagamento(paymentId);
@@ -115,20 +155,22 @@ router.post('/webhook/mercadopago', async (req, res) => {
     if (status === 'approved') {
       const { phone, ref, total, itens, endereco } = extrairDadosPedido(paymentInfo);
 
-      // 0) Marca o pagamento como concluído (cancela lembretes pendentes).
-      if (phone) {
-        marcarPago(phone);
+      // 3) Sem telefone do cliente, este pagamento NÃO veio do nosso fluxo de
+      // pedidos (pode ser teste/cobrança avulsa). Não notifica para evitar
+      // "NOVO PEDIDO PAGO! Cliente: não informado".
+      if (!phone) {
+        console.log('Pagamento aprovado sem telefone do cliente — ignorado (não é pedido do bot).');
+        return res.status(200).send('OK (sem telefone).');
       }
 
-      // 1) Confirmação para o CLIENTE.
-      if (phone) {
-        await enviarMensagemWhatsApp(phone, montarMensagemConfirmacao({ ref, total, endereco }));
-        console.log(`Confirmação enviada para ${phone}`);
-      } else {
-        console.log('Telefone não encontrado em external_reference nem metadata');
-      }
+      // Marca o pagamento como concluído (cancela lembretes pendentes).
+      marcarPago(phone);
 
-      // 2) Notificação para o DONO da loja (se ADMIN_PHONE estiver configurado).
+      // Confirmação para o CLIENTE.
+      await enviarMensagemWhatsApp(phone, montarMensagemConfirmacao({ ref, total, endereco }));
+      console.log(`Confirmação enviada para ${phone}`);
+
+      // Notificação para o DONO da loja (se ADMIN_PHONE estiver configurado).
       const donoTelefone = process.env.ADMIN_PHONE;
       if (donoTelefone) {
         try {
@@ -147,11 +189,19 @@ router.post('/webhook/mercadopago', async (req, res) => {
           console.error('Erro ao notificar o dono:', e.message);
         }
       }
+    } else {
+      // Pagamento ainda não aprovado (pending/rejected): libera o id para que
+      // uma futura notificação de aprovação seja processada normalmente.
+      pagamentosProcessados.delete(String(paymentId));
     }
 
     return res.status(200).send('OK');
   } catch (error) {
     console.error('Erro webhook Mercado Pago:', error.message);
+    // Libera o id em caso de erro, para que o reenvio do MP seja reprocessado.
+    const pid =
+      req.body?.data?.id || req.body?.payment_id || req.query?.['data.id'] || req.query?.id;
+    if (pid) pagamentosProcessados.delete(String(pid));
     // Responde 200 para evitar reenvios infinitos do Mercado Pago.
     return res.status(200).send('Erro capturado');
   }
