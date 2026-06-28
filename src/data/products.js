@@ -16,24 +16,29 @@ const PRODUTOS = [
     price: 14.0,
     currency_id: 'BRL',
     ids: ['empanada-carne-ovo', '37635357806051241'],
+    // Palavras-chave que o bot reconhece no texto do cliente.
+    keywords: ['carne', 'carne com ovo', 'carne ovo', 'boi', 'carne con ovo'],
   },
   {
     title: 'Empanada Cheeseburger',
     price: 14.0,
     currency_id: 'BRL',
     ids: ['empanada-cheeseburger', '27494792396822629'],
+    keywords: ['cheeseburger', 'cheese', 'burger', 'hamburguer', 'hamburger', 'x-burguer', 'xburguer'],
   },
   {
     title: 'Empanada de Atum com Queijo',
     price: 14.0,
     currency_id: 'BRL',
     ids: ['empanada-atum-queijo', '27085693970000000'],
+    keywords: ['atum', 'atum com queijo', 'atum queijo', 'peixe'],
   },
   {
     title: 'Empanada de Frango com Espinafre e Queijo',
     price: 14.0,
     currency_id: 'BRL',
     ids: ['empanada-frango-espinafre', '42000000000000000'],
+    keywords: ['frango', 'frango com espinafre', 'frango espinafre', 'galinha', 'chicken', 'espinafre'],
   },
 ];
 
@@ -67,6 +72,53 @@ export function buscarProduto(identificador) {
     return null;
   }
   return INDICE_PRODUTOS.get(String(identificador).trim()) || null;
+}
+
+/**
+ * Remove acentos e normaliza um texto para comparação de palavras-chave.
+ */
+function normalizar(texto) {
+  return String(texto)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+/**
+ * Busca um produto a partir de um termo livre digitado pelo cliente
+ * (ex.: "carne", "frango", "cheeseburger"). Faz correspondência por
+ * palavras-chave, priorizando a correspondência mais específica/longa.
+ *
+ * @param {string} termo
+ * @returns {{produto: object, keyword: string}|null}
+ */
+export function buscarProdutoPorTermo(termo) {
+  if (!termo) return null;
+  const alvo = normalizar(termo);
+  if (!alvo) return null;
+
+  let melhor = null;
+  let melhorTamanho = 0;
+
+  for (const produto of PRODUTOS) {
+    for (const keyword of produto.keywords || []) {
+      const kw = normalizar(keyword);
+      if (alvo.includes(kw) && kw.length > melhorTamanho) {
+        melhor = { produto, keyword: kw };
+        melhorTamanho = kw.length;
+      }
+    }
+  }
+
+  return melhor;
+}
+
+/**
+ * Retorna a lista completa de produtos do catálogo.
+ */
+export function listarProdutos() {
+  return PRODUTOS;
 }
 
 export default PRODUTOS;

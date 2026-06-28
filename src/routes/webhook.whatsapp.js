@@ -1,7 +1,11 @@
 import { Router } from 'express';
-import { extrairPedidoDoPayload } from '../services/order.service.js';
+import {
+  extrairPedidoDoPayload,
+  extrairTextoDoPayload,
+} from '../services/order.service.js';
 import { criarPreferenciaPagamento } from '../services/payment.service.js';
 import { enviarMensagemWhatsApp } from '../services/whatsapp.service.js';
+import { processarMensagemTexto } from '../services/chatbot.service.js';
 
 const router = Router();
 
@@ -27,42 +31,46 @@ router.get('/webhook/whatsapp', (req, res) => {
 });
 
 router.post('/webhook/whatsapp', async (req, res) => {
+  // Responde 200 imediatamente para a Meta não reenviar o webhook.
+  // O processamento e o envio da resposta acontecem em seguida.
+  res.status(200).send('EVENT_RECEIVED');
+
   try {
-    const parsed = extrairPedidoDoPayload(req.body);
+    // 1) Pedido via CATÁLOGO (botão "Comprar" / order do WhatsApp).
+    const pedido = extrairPedidoDoPayload(req.body);
 
-    if (!parsed) {
-      return res.status(200).send('Sem mensagem para processar.');
+    if (pedido && pedido.type === 'order') {
+      const { customerPhone, totalAmount } = pedido;
+
+      const { initPoint, sandboxInitPoint } = await criarPreferenciaPagamento({
+        totalAmount,
+        customerPhone,
+        baseUrl: process.env.BASE_URL,
+      });
+
+      const link = sandboxInitPoint || initPoint;
+
+      await enviarMensagemWhatsApp(
+        customerPhone,
+        `✅ Pedido recebido!\n\nTotal: R$ ${totalAmount.toFixed(2)}\n\n💳 Pague aqui:\n${link}`
+      );
+      return;
     }
 
-    if (parsed.type !== 'order') {
-      return res.status(200).send('Mensagem recebida, mas não é um pedido.');
+    // 2) Mensagem de TEXTO (conversa com o bot).
+    const textoMsg = extrairTextoDoPayload(req.body);
+
+    if (textoMsg) {
+      const { customerPhone, texto } = textoMsg;
+      const resposta = await processarMensagemTexto(customerPhone, texto);
+      await enviarMensagemWhatsApp(customerPhone, resposta);
+      return;
     }
 
-    const { customerPhone, totalAmount } = parsed;
-
-    const { initPoint, sandboxInitPoint, preferenceId } = await criarPreferenciaPagamento({
-      totalAmount,
-      customerPhone,
-      baseUrl: process.env.BASE_URL
-    });
-
-    const link = sandboxInitPoint || initPoint;
-
-    await enviarMensagemWhatsApp(
-      customerPhone,
-      `✅ Pedido recebido!\n\nTotal: R$ ${totalAmount.toFixed(2)}\n\n💳 Pague aqui:\n${link}`
-    );
-
-    return res.status(200).json({
-      status: 'sucesso',
-      preference_id: preferenceId,
-      checkout_link: link
-    });
+    // 3) Outros eventos (status de entrega, etc.) — ignorados.
+    console.log('Webhook WhatsApp: evento sem mensagem processável.');
   } catch (error) {
     console.error('Erro webhook WhatsApp:', error.message);
-    return res.status(500).json({
-      erro: error.message
-    });
   }
 });
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { buscarPagamento } from '../services/payment.service.js';
 import { enviarMensagemWhatsApp } from '../services/whatsapp.service.js';
+import { mensagemNotificacaoDono } from '../services/messages.service.js';
 
 const router = Router();
 
@@ -25,10 +26,18 @@ function extrairDadosPedido(paymentInfo) {
     if (valor.startsWith('{')) {
       try {
         const dados = JSON.parse(valor);
+        // Normaliza os itens (podem vir como {id,t,q} ou {id,q}).
+        const itens = Array.isArray(dados.items)
+          ? dados.items.map(i => ({
+              titulo: i.t || i.titulo || null,
+              quantidade: i.q || i.quantidade || 1,
+            }))
+          : [];
         return {
           phone: dados.phone || metadata.customer_phone || null,
           ref: dados.ref || null,
           total: typeof dados.total === 'number' ? dados.total : null,
+          itens,
         };
       } catch (e) {
         console.warn('external_reference não é um JSON válido, usando como telefone.', e.message);
@@ -36,13 +45,14 @@ function extrairDadosPedido(paymentInfo) {
     }
 
     // Caso contrário, trata como telefone (compatibilidade com fluxo antigo).
-    return { phone: valor, ref: null, total: null };
+    return { phone: valor, ref: null, total: null, itens: [] };
   }
 
   return {
     phone: metadata.customer_phone || null,
     ref: null,
     total: null,
+    itens: [],
   };
 }
 
@@ -75,13 +85,33 @@ router.post('/webhook/mercadopago', async (req, res) => {
     console.log(`Pagamento ${paymentId}: ${status}`);
 
     if (status === 'approved') {
-      const { phone, ref, total } = extrairDadosPedido(paymentInfo);
+      const { phone, ref, total, itens } = extrairDadosPedido(paymentInfo);
 
+      // 1) Confirmação para o CLIENTE.
       if (phone) {
         await enviarMensagemWhatsApp(phone, montarMensagemConfirmacao({ ref, total }));
         console.log(`Confirmação enviada para ${phone}`);
       } else {
         console.log('Telefone não encontrado em external_reference nem metadata');
+      }
+
+      // 2) Notificação para o DONO da loja (se ADMIN_PHONE estiver configurado).
+      const donoTelefone = process.env.ADMIN_PHONE;
+      if (donoTelefone) {
+        try {
+          await enviarMensagemWhatsApp(
+            donoTelefone,
+            mensagemNotificacaoDono({
+              cliente: phone,
+              itens,
+              total,
+              referencia: ref,
+            })
+          );
+          console.log(`Notificação de pedido enviada ao dono (${donoTelefone})`);
+        } catch (e) {
+          console.error('Erro ao notificar o dono:', e.message);
+        }
       }
     }
 
