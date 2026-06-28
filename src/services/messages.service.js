@@ -5,7 +5,7 @@
  * (tom de voz, informações da loja, etc.) em um único lugar.
  */
 
-import { listarProdutos } from '../data/products.js';
+import { listarPorCategoria } from '../data/products.js';
 
 const NOME_LOJA = 'La Empanadas Saltenhas Argentinas';
 
@@ -20,20 +20,29 @@ function formatarPreco(valor) {
  * Mensagem de boas-vindas + cardápio completo.
  */
 export function mensagemCardapio() {
-  const produtos = listarProdutos();
-  const linhas = produtos
-    .map((p, i) => `${i + 1}️⃣ *${p.title}* — ${formatarPreco(p.price)}`)
-    .join('\n');
+  const grupos = listarPorCategoria();
+
+  const blocos = grupos
+    .map(grupo => {
+      const linhas = grupo.produtos
+        .map(p => {
+          const desc = p.descricao ? ` _(${p.descricao})_` : '';
+          return `• *${p.title}*${desc} — ${formatarPreco(p.price)}`;
+        })
+        .join('\n');
+      return `*${grupo.titulo}*\n${linhas}`;
+    })
+    .join('\n\n');
 
   return (
     `🥟 *${NOME_LOJA}* 🇦🇷\n\n` +
     `Olá! Bem-vindo(a)! Confira nosso cardápio:\n\n` +
-    `${linhas}\n\n` +
+    `${blocos}\n\n` +
     `📝 *Como pedir:*\n` +
     `Escreva a quantidade e o sabor. Exemplos:\n` +
     `• _2 carne 1 cheeseburger_\n` +
-    `• _3 frango_\n` +
-    `• _duas de atum_\n\n` +
+    `• _3 frango espinafre_\n` +
+    `• _duas de atum e uma coca_\n\n` +
     `É só mandar seu pedido que eu monto tudo pra você! 😉`
   );
 }
