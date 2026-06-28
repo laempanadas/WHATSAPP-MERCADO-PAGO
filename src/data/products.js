@@ -32,7 +32,7 @@ const PRODUTOS = [
   // ----------------------- EMPANADAS SALGADAS -----------------------
   {
     title: 'Empanada de Carne com Ovos',
-    price: 14.9,
+    price: 14.00,
     currency_id: 'BRL',
     categoria: 'salgadas',
     ids: ['empanada-carne-ovo', '37635357806051241'],
@@ -40,7 +40,7 @@ const PRODUTOS = [
   },
   {
     title: 'Empanada de Frango com Espinafre e Cheddar',
-    price: 14.9,
+    price: 14.00,
     currency_id: 'BRL',
     categoria: 'salgadas',
     ids: ['empanada-frango-espinafre', '42000000000000000'],
@@ -48,7 +48,7 @@ const PRODUTOS = [
   },
   {
     title: 'Empanada de Calabresa com Cream Cheese',
-    price: 14.9,
+    price: 14.00,
     currency_id: 'BRL',
     categoria: 'salgadas',
     ids: ['empanada-calabresa-cream-cheese'],
@@ -56,7 +56,7 @@ const PRODUTOS = [
   },
   {
     title: 'Empanada de Espinafre com Ricota e Tomate Seco',
-    price: 14.5,
+    price: 14.00,
     currency_id: 'BRL',
     categoria: 'salgadas',
     ids: ['empanada-espinafre-ricota'],
@@ -64,7 +64,7 @@ const PRODUTOS = [
   },
   {
     title: 'Empanada de Hambúrguer com Cheddar',
-    price: 14.9,
+    price: 14.00,
     currency_id: 'BRL',
     categoria: 'salgadas',
     ids: ['empanada-hamburguer-cheddar', '27494792396822629'],
@@ -72,7 +72,7 @@ const PRODUTOS = [
   },
   {
     title: 'Empanada Bacon Cheeseburger',
-    price: 14.9,
+    price: 14.00,
     currency_id: 'BRL',
     categoria: 'salgadas',
     ids: ['empanada-bacon-cheeseburger'],
@@ -80,7 +80,7 @@ const PRODUTOS = [
   },
   {
     title: 'Empanada Portuguesa',
-    price: 14.5,
+    price: 14.00,
     currency_id: 'BRL',
     categoria: 'salgadas',
     ids: ['empanada-portuguesa'],
@@ -88,7 +88,7 @@ const PRODUTOS = [
   },
   {
     title: 'Empanada de Queijo, Tomate, Manjericão e Orégano',
-    price: 14.9,
+    price: 14.00,
     currency_id: 'BRL',
     categoria: 'salgadas',
     ids: ['empanada-queijo-manjericao'],
@@ -96,7 +96,7 @@ const PRODUTOS = [
   },
   {
     title: 'Empanada de Queijo com Cebola Caramelizada',
-    price: 14.9,
+    price: 14.00,
     currency_id: 'BRL',
     categoria: 'salgadas',
     ids: ['empanada-queijo-cebola-caramelizada'],
@@ -104,7 +104,7 @@ const PRODUTOS = [
   },
   {
     title: 'Empanada de Escarola com Queijo',
-    price: 14.5,
+    price: 14.00,
     currency_id: 'BRL',
     categoria: 'salgadas',
     ids: ['empanada-escarola-queijo'],
@@ -112,7 +112,7 @@ const PRODUTOS = [
   },
   {
     title: 'Empanada de Atum com Queijos',
-    price: 14.9,
+    price: 14.00,
     currency_id: 'BRL',
     categoria: 'salgadas',
     ids: ['empanada-atum-queijo', '27085693970000000'],
@@ -120,7 +120,7 @@ const PRODUTOS = [
   },
   {
     title: 'Empanada de Palmito',
-    price: 14.9,
+    price: 14.00,
     currency_id: 'BRL',
     categoria: 'salgadas',
     ids: ['empanada-palmito'],
@@ -130,7 +130,7 @@ const PRODUTOS = [
   // ------------------------- EMPANADAS DOCES -------------------------
   {
     title: 'Empanada de Chocolate ao Leite com Morango',
-    price: 18.9,
+    price: 16.9,
     currency_id: 'BRL',
     categoria: 'doces',
     ids: ['empanada-chocolate-morango'],
@@ -157,7 +157,7 @@ const PRODUTOS = [
   },
   {
     title: 'Combo Família 8 Empanadas Assadas',
-    price: 112.2,
+    price: 102.00,
     currency_id: 'BRL',
     categoria: 'combos',
     descricao: '8 empanadas assadas à sua escolha',
@@ -166,7 +166,7 @@ const PRODUTOS = [
   },
   {
     title: 'Combo 4 Empanadas',
-    price: 55.9,
+    price: 52.9,
     currency_id: 'BRL',
     categoria: 'combos',
     descricao: '4 empanadas à sua escolha',
