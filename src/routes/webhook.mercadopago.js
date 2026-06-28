@@ -37,6 +37,7 @@ function extrairDadosPedido(paymentInfo) {
           phone: dados.phone || metadata.customer_phone || null,
           ref: dados.ref || null,
           total: typeof dados.total === 'number' ? dados.total : null,
+          endereco: dados.addr || metadata.delivery_address || null,
           itens,
         };
       } catch (e) {
@@ -45,13 +46,20 @@ function extrairDadosPedido(paymentInfo) {
     }
 
     // Caso contrário, trata como telefone (compatibilidade com fluxo antigo).
-    return { phone: valor, ref: null, total: null, itens: [] };
+    return {
+      phone: valor,
+      ref: null,
+      total: null,
+      endereco: metadata.delivery_address || null,
+      itens: [],
+    };
   }
 
   return {
     phone: metadata.customer_phone || null,
     ref: null,
     total: null,
+    endereco: metadata.delivery_address || null,
     itens: [],
   };
 }
@@ -59,14 +67,18 @@ function extrairDadosPedido(paymentInfo) {
 /**
  * Monta a mensagem de confirmação enviada ao cliente via WhatsApp.
  */
-function montarMensagemConfirmacao({ ref, total }) {
-  let mensagem = '✅ Pagamento aprovado!\nSeu pedido foi confirmado com sucesso.';
+function montarMensagemConfirmacao({ ref, total, endereco }) {
+  let mensagem = '✅ Pagamento aprovado!\nSeu pedido foi confirmado com sucesso. 🥟';
   if (typeof total === 'number') {
     mensagem += `\n\nTotal: R$ ${total.toFixed(2)}`;
+  }
+  if (endereco) {
+    mensagem += `\n📍 Entrega em: ${endereco}`;
   }
   if (ref) {
     mensagem += `\nPedido: ${ref}`;
   }
+  mensagem += '\n\nJá estamos preparando! Obrigado pela preferência. ❤️';
   return mensagem;
 }
 
@@ -85,11 +97,11 @@ router.post('/webhook/mercadopago', async (req, res) => {
     console.log(`Pagamento ${paymentId}: ${status}`);
 
     if (status === 'approved') {
-      const { phone, ref, total, itens } = extrairDadosPedido(paymentInfo);
+      const { phone, ref, total, itens, endereco } = extrairDadosPedido(paymentInfo);
 
       // 1) Confirmação para o CLIENTE.
       if (phone) {
-        await enviarMensagemWhatsApp(phone, montarMensagemConfirmacao({ ref, total }));
+        await enviarMensagemWhatsApp(phone, montarMensagemConfirmacao({ ref, total, endereco }));
         console.log(`Confirmação enviada para ${phone}`);
       } else {
         console.log('Telefone não encontrado em external_reference nem metadata');
@@ -106,6 +118,7 @@ router.post('/webhook/mercadopago', async (req, res) => {
               itens,
               total,
               referencia: ref,
+              endereco,
             })
           );
           console.log(`Notificação de pedido enviada ao dono (${donoTelefone})`);

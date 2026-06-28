@@ -77,14 +77,56 @@ export function mensagemItensNaoReconhecidos(desconhecidos) {
 }
 
 /**
- * Mensagem com o link de pagamento.
+ * Mensagem pedindo o endereço de entrega (após confirmar o pedido).
+ */
+export function mensagemPedirEndereco() {
+  return (
+    `📍 *Endereço de entrega*\n\n` +
+    `Para finalizar, me envie o endereço completo da entrega:\n\n` +
+    `_Rua, número, bairro, complemento e ponto de referência._\n\n` +
+    `Exemplo:\n` +
+    `_Rua das Flores, 123, Centro, apto 45 - próximo ao mercado_`
+  );
+}
+
+/**
+ * Mensagem quando o endereço enviado parece incompleto.
+ */
+export function mensagemEnderecoIncompleto() {
+  return (
+    `🤔 O endereço parece incompleto.\n\n` +
+    `Por favor, envie o endereço completo com *rua, número e bairro*.\n\n` +
+    `Exemplo:\n` +
+    `_Rua das Flores, 123, Centro, apto 45_`
+  );
+}
+
+/**
+ * Corpo da mensagem com o link de pagamento (usado no botão CTA).
+ *
+ * @param {number} total
+ * @param {string} endereco
+ */
+export function corpoPagamento(total, endereco) {
+  return (
+    `🎉 *Pedido confirmado!*\n\n` +
+    (endereco ? `📍 Entrega em: ${endereco}\n\n` : '') +
+    `Valor: *${formatarPreco(total)}*\n\n` +
+    `Toque no botão abaixo para pagar pelo Mercado Pago 👇`
+  );
+}
+
+/**
+ * Mensagem com o link de pagamento (fallback em texto puro).
  *
  * @param {number} total
  * @param {string} link
+ * @param {string} [endereco]
  */
-export function mensagemLinkPagamento(total, link) {
+export function mensagemLinkPagamento(total, link, endereco) {
   return (
     `🎉 Pedido confirmado!\n\n` +
+    (endereco ? `📍 Entrega em: ${endereco}\n\n` : '') +
     `💳 *Pague aqui pelo Mercado Pago:*\n${link}\n\n` +
     `Valor: *${formatarPreco(total)}*\n\n` +
     `Assim que o pagamento for aprovado, você recebe a confirmação por aqui. ` +
@@ -143,7 +185,7 @@ export function mensagemNadaParaConfirmar() {
  *
  * @param {object} dados
  */
-export function mensagemNotificacaoDono({ cliente, itens, total, referencia }) {
+export function mensagemNotificacaoDono({ cliente, itens, total, referencia, endereco }) {
   let linhasItens = '';
   if (Array.isArray(itens) && itens.length > 0) {
     linhasItens =
@@ -159,6 +201,7 @@ export function mensagemNotificacaoDono({ cliente, itens, total, referencia }) {
     `👤 Cliente: ${cliente || 'não informado'}\n` +
     (referencia ? `🧾 Pedido: ${referencia}\n` : '') +
     linhasItens +
+    (endereco ? `\n📍 *Entrega:* ${endereco}\n` : '') +
     (total ? `\n💰 *Total: ${formatarPreco(total)}*\n` : '') +
     `✅ Pagamento aprovado`
   );
