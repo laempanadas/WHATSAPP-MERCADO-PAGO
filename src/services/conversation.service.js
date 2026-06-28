@@ -16,6 +16,7 @@ export const ESTADOS = {
   INICIO: 'inicio',
   AGUARDANDO_SABORES_COMBO: 'aguardando_sabores_combo',
   AGUARDANDO_CONFIRMACAO: 'aguardando_confirmacao',
+  AGUARDANDO_NOME: 'aguardando_nome',
   AGUARDANDO_ENDERECO: 'aguardando_endereco',
 };
 
@@ -45,6 +46,9 @@ export function obterSessao(telefone) {
     carrinho: [],
     total: 0,
     endereco: null,
+    // Nome do cliente (definido no pedido) e nome do perfil do WhatsApp.
+    nome: null,
+    nomePerfil: null,
     // Combos aguardando escolha de sabores (cada item: {produto, quantidade, faltam, escolhas}).
     combosPendentes: [],
     // Itens já definidos enquanto coletamos os sabores dos combos.
@@ -100,6 +104,8 @@ export function limparSessao(telefone) {
     carrinho: [],
     total: 0,
     endereco: null,
+    // Mantém o nomePerfil (vem do WhatsApp a cada mensagem); zera o nome do pedido.
+    nome: null,
     combosPendentes: [],
     carrinhoBase: [],
     lembreteCarrinhoEnviado: false,
