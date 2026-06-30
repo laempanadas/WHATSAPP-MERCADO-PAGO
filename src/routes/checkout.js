@@ -10,30 +10,31 @@ const router = Router();
 /**
  * GET /checkout
  *
- * Ponto de extremidade configurado como "URL de finalização da compra" no
- * Meta Commerce Manager. A Meta redireciona o cliente para cá com os
- * parâmetros do produto (product_id, quantity, external_id, item_id, etc.).
+ * Endpoint usado pelo Meta Commerce Manager como URL de finalização da compra.
+ * Recebe os parâmetros do produto, interpreta o pedido, cria a preferência no
+ * Mercado Pago e redireciona para o checkout de produção.
  *
- * Fluxo:
- *   1. Interpreta os parâmetros enviados pela Meta.
- *   2. Resolve os produtos (catálogo mock) e calcula o total.
- *   3. Cria uma preferência de pagamento no Mercado Pago.
- *   4. Redireciona o cliente para o checkout do Mercado Pago.
- *
- * Query opcional `?debug=1` retorna um JSON com os detalhes em vez de
- * redirecionar (útil para testes).
+ * Query opcional:
+ * - ?debug=1 -> retorna JSON em vez de redirecionar
  */
 router.get('/checkout', async (req, res, next) => {
   try {
-    console.log('GET /checkout recebido', req.query);
+    const query = req.query || {};
 
-    const { items, totalAmount, coupon, orderRef, customerPhone } = interpretarCheckout(
-      req.query
-    );
+    console.log('GET /checkout recebido');
+    console.log('QUERY BRUTA:', query);
 
-    // Validação: precisa de ao menos um item com valor positivo.
-    if (!items.length) {
-      console.warn('Checkout sem produtos identificáveis nos parâmetros.', req.query);
+    const parsed = interpretarCheckout(query);
+    const { items, totalAmount, coupon, orderRef, customerPhone } = parsed;
+
+    console.log('ITEMS INTERPRETADOS:', items);
+    console.log('TOTAL INTERPRETADO:', totalAmount);
+    console.log('CUPOM:', coupon);
+    console.log('ORDER REF:', orderRef);
+    console.log('PHONE:', customerPhone);
+
+    if (!Array.isArray(items) || items.length === 0) {
+      console.warn('Checkout sem produtos identificáveis nos parâmetros.', query);
       return res.status(400).json({
         erro: 'Nenhum produto informado. Verifique os parâmetros da URL de checkout.',
       });
@@ -41,7 +42,9 @@ router.get('/checkout', async (req, res, next) => {
 
     if (!(totalAmount > 0)) {
       console.warn('Checkout com total inválido.', { totalAmount, items });
-      return res.status(400).json({ erro: 'Total do pedido inválido.' });
+      return res.status(400).json({
+        erro: 'Total do pedido inválido.',
+      });
     }
 
     const externalReference = montarExternalReference({
@@ -50,6 +53,8 @@ router.get('/checkout', async (req, res, next) => {
       items,
       totalAmount,
     });
+
+    console.log('EXTERNAL REFERENCE:', externalReference);
 
     const metadata = {
       source: 'meta_checkout',
@@ -64,25 +69,29 @@ router.get('/checkout', async (req, res, next) => {
       })),
     };
 
-    const { preferenceId, initPoint, sandboxInitPoint } = await criarPreferencia({
+    console.log('METADATA:', metadata);
+
+    const { preferenceId, initPoint } = await criarPreferencia({
       items,
       externalReference,
       metadata,
       baseUrl: process.env.BASE_URL,
     });
 
-    const checkoutUrl = initPoint || sandboxInitPoint;
+    console.log('PREFERENCE ID:', preferenceId);
+    console.log('INIT POINT:', initPoint);
 
-    if (!checkoutUrl) {
-      throw new Error('Mercado Pago não retornou uma URL de checkout.');
+    if (!initPoint) {
+      throw new Error(
+        'Mercado Pago não retornou init_point de produção. Verifique se o MP_ACCESS_TOKEN é de produção e se a conta está correta.'
+      );
     }
 
     console.log(
-      `Preferência criada: ${preferenceId} | total: R$ ${totalAmount.toFixed(2)} | itens: ${items.length}`
+      `Preferência criada com sucesso | total: R$ ${totalAmount.toFixed(2)} | itens: ${items.length}`
     );
 
-    // Modo debug: retorna JSON em vez de redirecionar.
-    if (req.query.debug === '1') {
+    if (query.debug === '1') {
       return res.status(200).json({
         preference_id: preferenceId,
         total: totalAmount,
@@ -90,13 +99,14 @@ router.get('/checkout', async (req, res, next) => {
         order_reference: orderRef,
         customer_phone: customerPhone,
         items,
-        checkout_url: checkoutUrl,
+        external_reference: externalReference,
+        checkout_url: initPoint,
       });
     }
 
-    // Redireciona o cliente para o checkout do Mercado Pago.
-    return res.redirect(302, checkoutUrl);
+    return res.redirect(302, initPoint);
   } catch (error) {
+    console.error('Erro em GET /checkout:', error);
     return next(error);
   }
 });
