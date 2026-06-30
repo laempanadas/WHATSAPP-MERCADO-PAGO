@@ -37,6 +37,10 @@ export function mensagemCardapio() {
   return (
     `🥟 *${NOME_LOJA}* 🇦🇷\n\n` +
     `Olá! Bem-vindo(a)! Confira nosso cardápio:\n\n` +
+    `⚠️ *Aviso importante:*\n` +
+    `Hoje, *30/06/2026*, não haverá atendimento.\n` +
+    `📌 *Atendimento normal volta amanhã.*\n\n` +
+    `Agradecemos a compreensão! ❤️\n\n` +
     `${blocos}\n\n` +
     `📝 *Como pedir:*\n` +
     `Escreva a quantidade e o sabor. Exemplos:\n` +
