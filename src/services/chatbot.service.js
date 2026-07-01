@@ -187,7 +187,7 @@ async function gerarLinkPagamento(telefone, carrinho, total, endereco, nome) {
     currency_id: item.produto.currency_id || 'BRL',
   }));
 
-  const { initPoint, sandboxInitPoint } = await criarPreferencia({
+  const { initPoint } = await criarPreferencia({
     items,
     externalReference: montarReferencia(telefone, carrinho, total, endereco, nome),
     metadata: {
@@ -200,8 +200,11 @@ async function gerarLinkPagamento(telefone, carrinho, total, endereco, nome) {
     baseUrl: process.env.BASE_URL,
   });
 
-  // Em produção usamos o initPoint; o sandbox só é usado se for o único disponível.
-  return initPoint || sandboxInitPoint;
+  if (!initPoint) {
+    throw new Error('Não foi possível obter o link de pagamento do Mercado Pago.');
+  }
+
+  return initPoint;
 }
 
 /**

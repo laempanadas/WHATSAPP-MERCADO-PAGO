@@ -9,8 +9,11 @@ export function extrairPedidoDoPayload(body) {
 
   const customerPhone = message.from;
   const orderData = message.order || message.interactive?.order;
+  const productItems = Array.isArray(orderData?.product_items)
+    ? orderData.product_items
+    : [];
 
-  if (!orderData || !Array.isArray(orderData.product_items)) {
+  if (productItems.length === 0) {
     return {
       type: 'not_order',
       customerPhone,
@@ -19,9 +22,9 @@ export function extrairPedidoDoPayload(body) {
   }
 
   const totalAmount = calcularTotal(
-    orderData.product_items.map(item => ({
-      quantity: item.quantity,
-      unit_price: item.item_price
+    productItems.map(item => ({
+      quantity: item.quantity || item.item_quantity || 0,
+      unit_price: item.item_price || item.unit_price || item.price || 0,
     }))
   );
 
@@ -29,7 +32,8 @@ export function extrairPedidoDoPayload(body) {
     type: 'order',
     customerPhone,
     orderData,
-    totalAmount
+    totalAmount,
+    items: productItems,
   };
 }
 

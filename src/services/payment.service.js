@@ -64,7 +64,6 @@ export async function criarPreferencia({ items, externalReference, metadata = {}
   return {
     preferenceId: response.id,
     initPoint: response.init_point,
-    sandboxInitPoint: response.sandbox_init_point,
   };
 }
 

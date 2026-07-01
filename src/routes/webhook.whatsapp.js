@@ -51,7 +51,7 @@ router.post('/webhook/whatsapp', async (req, res) => {
         baseUrl: process.env.BASE_URL,
       });
 
-      const link = sandboxInitPoint || initPoint;
+      const link = initPoint || sandboxInitPoint;
 
       await enviarMensagemWhatsApp(
         customerPhone,

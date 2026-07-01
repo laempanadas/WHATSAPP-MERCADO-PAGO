@@ -45,14 +45,16 @@ export async function enviarMensagemWhatsApp(telefone, mensagem) {
  */
 export async function enviarBotaoUrlWhatsApp(telefone, { corpo, textoBotao, url, rodape }) {
   const interactive = {
-    type: 'cta_url',
+    type: 'button',
     body: { text: corpo },
     action: {
-      name: 'cta_url',
-      parameters: {
-        display_text: String(textoBotao).slice(0, 20),
-        url,
-      },
+      buttons: [
+        {
+          type: 'url',
+          title: String(textoBotao).slice(0, 20),
+          url,
+        },
+      ],
     },
   };
 
