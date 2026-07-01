@@ -50,6 +50,7 @@ export function mensagemCardapio() {
   `Para falar com um atendente por voz, *ligue* para: 📞 *(11) 2669‑0644*.\n\n` +
   `Se tiver dificuldade com o pagamento, ligue antes de enviar o pedido. Obrigado!`
 );
+}
 
 /**
  * Resumo do carrinho para o cliente confirmar.
