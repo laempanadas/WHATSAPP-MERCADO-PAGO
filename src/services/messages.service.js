@@ -34,22 +34,22 @@ export function mensagemCardapio() {
     })
     .join('\n\n');
 
-  return (
-    `🥟 *${NOME_LOJA}* 🇦🇷\n\n` +
-    `Olá! Bem-vindo(a)! Confira nosso cardápio:\n\n` +
-    `⚠️ *Aviso importante:*\n` +
-    `Hoje, *30/06/2026*, não haverá atendimento.\n` +
-    `📌 *Atendimento normal volta amanhã.*\n\n` +
-    `Agradecemos a compreensão! ❤️\n\n` +
-    `${blocos}\n\n` +
-    `📝 *Como pedir:*\n` +
-    `Escreva a quantidade e o sabor. Exemplos:\n` +
-    `• _2 carne 1 cheeseburger_\n` +
-    `• _3 frango espinafre_\n` +
-    `• _duas de atum e uma coca_\n\n` +
-    `É só mandar seu pedido que eu monto tudo pra você! 😉`
-  );
-}
+ return (
+  `🥟 *${NOME_LOJA}* 🇦🇷\n\n` +
+  `Olá! Bem‑vindo(a). Confira nosso cardápio abaixo:\n\n` +
+  `${blocos}\n\n` +
+  `📝 *Como pedir (leia com atenção):*\n` +
+  `1) Escreva seu pedido aqui com quantidade e sabor.\n` +
+  `   Exemplos:\n` +
+  `   • _2x Carne_\n` +
+  `   • _1x Cheeseburger, 2x Frango_\n` +
+  `   • _2 de atum e 1 Coca_\n\n` +
+  `2) Enviaremos o resumo do pedido e o *link de pagamento*.\n` +
+  `3) *A produção só começa após a confirmação do pagamento.*\n\n` +
+  `⚠️ *IMPORTANTE:* Pelo WhatsApp aceitamos apenas *pedidos e pagamento por link* — *não há atendimento por mensagens*. \n` +
+  `Para falar com um atendente por voz, *ligue* para: 📞 *(11) 2669‑0644*.\n\n` +
+  `Se tiver dificuldade com o pagamento, ligue antes de enviar o pedido. Obrigado!`
+);
 
 /**
  * Resumo do carrinho para o cliente confirmar.
