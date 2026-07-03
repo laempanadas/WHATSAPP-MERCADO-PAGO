@@ -39,6 +39,14 @@ const PRODUTOS = [
     keywords: ['carne ovo', 'carne ovos', 'carne con ovo', 'carne', 'boi'],
   },
   {
+    title: 'Empanada de Costela',
+    price: 15.00,
+    currency_id: 'BRL',
+    categoria: 'salgadas',
+    ids: ['empanada-costela'],
+    keywords: ['costela', 'costela desfiada', 'costela churrasco'],
+  },
+  {
     title: 'Empanada de Frango com Espinafre e Cheddar',
     price: 14.00,
     currency_id: 'BRL',

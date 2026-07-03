@@ -32,6 +32,10 @@ const CONFIRMACOES = ['sim', 's', 'confirmar', 'confirmo', 'confirma', 'ok', 'ok
 const CANCELAMENTOS = ['nao', 'n', 'cancelar', 'cancela', 'cancelado', 'desistir', 'limpar', 'recomecar', 'apagar'];
 const PEDIDOS_AJUDA = ['ajuda', 'help', 'como funciona', 'duvida'];
 
+const PERGUNTAS_DISPONIBILIDADE = [
+  'tem', 'temos', 'ainda tem', 'tem ainda', 'ta', 'tá', 'há', 'tem disponível',
+];
+
 /**
  * Converte números escritos por extenso (um, dois...) em dígitos.
  */
@@ -58,6 +62,14 @@ export function detectarIntencao(texto) {
   if (CANCELAMENTOS.includes(t)) return 'cancelar';
   if (PEDIDOS_AJUDA.some(p => t.includes(p))) return 'ajuda';
 
+  // Perguntas de disponibilidade devem mostrar o cardápio.
+  if (
+    PERGUNTAS_DISPONIBILIDADE.some(p => t.includes(p)) &&
+    /\b(hoje|agora|ainda|disponivel|disponível)\b/.test(t)
+  ) {
+    return 'saudacao';
+  }
+
   // Se há itens identificáveis, é um pedido
   const itens = extrairItens(texto);
   if (itens.length > 0) return 'pedido';
@@ -67,6 +79,7 @@ export function detectarIntencao(texto) {
 
   return 'desconhecido';
 }
+
 
 /**
  * Extrai os itens de pedido de um texto livre.
