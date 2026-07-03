@@ -82,7 +82,11 @@ router.post('/webhook/whatsapp', async (req, res) => {
     }
 
     // 3) Outros eventos (status de entrega, etc.) — ignorados.
-    console.log('Webhook WhatsApp: evento sem mensagem processável.');
+    const eventType =
+      req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.type ||
+      req.body?.entry?.[0]?.changes?.[0]?.value?.statuses?.[0]?.status ||
+      'desconhecido';
+    console.log('Webhook WhatsApp: evento sem mensagem processável.', { eventType });
   } catch (error) {
     console.error('Erro webhook WhatsApp:', error.message);
   }

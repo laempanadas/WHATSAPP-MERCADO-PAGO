@@ -452,8 +452,19 @@ export async function processarMensagemTexto(telefone, mensagem, nomePerfil) {
   // Demais etapas, conforme a intenção detectada.
   // ---------------------------------------------------------------------------
   switch (intencao) {
-    case 'saudacao':
+    case 'saudacao': {
+      // Se a saudação contém termos de produto reconhecíveis, responda sobre
+      // disponibilidade em vez de só mostrar o cardápio.
+      const itens = extrairItens(mensagem);
+      const { validos } = separarItens(itens);
+      if (validos.length > 0) {
+        const nomes = validos.map(v => v.produto.title).slice(0, 3).join(', ');
+        return texto(
+          `Sim! Temos ${nomes} disponíveis hoje. Para pedir, digite a quantidade e o sabor (ex: 2 costela).`
+        );
+      }
       return texto(mensagemCardapio());
+    }
 
     case 'ajuda':
       return texto(mensagemAjuda());

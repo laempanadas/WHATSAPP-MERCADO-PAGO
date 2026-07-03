@@ -1,0 +1,160 @@
+[33mcommit ddc058ea3c2f6fd4b07c67dc1daec52f002b8a61[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: laempanadas <60949498+laempanadas@users.noreply.github.com>
+Date:   Thu Jul 2 05:21:32 2026 +0000
+
+    perf(webhook): otimiza rota de webhook para responder assincronamente
+
+[1mdiff --git a/src/routes/webhook.mercadopago.js b/src/routes/webhook.mercadopago.js[m
+[1mindex f6fd8e4..a31a0f6 100644[m
+[1m--- a/src/routes/webhook.mercadopago.js[m
+[1m+++ b/src/routes/webhook.mercadopago.js[m
+[36m@@ -8,11 +8,6 @@[m [mconst router = Router();[m
+ [m
+ /**[m
+  * Memória dos pagamentos já processados (evita notificação duplicada).[m
+[31m- *[m
+[31m- * O Mercado Pago costuma disparar o webhook MAIS DE UMA VEZ para o mesmo[m
+[31m- * pagamento (ex.: payment.created e depois payment.updated). Sem proteção,[m
+[31m- * o dono receberia "NOVO PEDIDO PAGO" repetido. Guardamos o id do pagamento[m
+[31m- * com a hora; ids antigos são limpos automaticamente.[m
+  */[m
+ const pagamentosProcessados = new Map();[m
+ const JANELA_DEDUPE_MS = 6 * 60 * 60 * 1000; // 6 horas[m
+[36m@@ -20,7 +15,6 @@[m [mconst JANELA_DEDUPE_MS = 6 * 60 * 60 * 1000; // 6 horas[m
+ function jaProcessado(paymentId) {[m
+   const id = String(paymentId);[m
+   const agora = Date.now();[m
+[31m-  // Limpa entradas antigas para não crescer indefinidamente.[m
+   for (const [k, t] of pagamentosProcessados.entries()) {[m
+     if (agora - t > JANELA_DEDUPE_MS) pagamentosProcessados.delete(k);[m
+   }[m
+[36m@@ -31,20 +25,11 @@[m [mfunction jaProcessado(paymentId) {[m
+ [m
+ /**[m
+  * Extrai os dados do pedido a partir do external_reference do pagamento.[m
+[31m- *[m
+[31m- * Suporta dois formatos:[m
+[31m- *   - JSON estruturado (gerado pela rota /checkout): {"src","phone","ref","total","items"}[m
+[31m- *   - String simples contendo apenas o telefone (fluxo do webhook do WhatsApp)[m
+[31m- *[m
+[31m- * @param {Object} paymentInfo[m
+[31m- * @returns {{phone: string|null, ref: string|null, total: number|null}}[m
+  */[m
+ function extrairDadosPedido(paymentInfo) {[m
+   const externalReference = paymentInfo.external_reference;[m
+   const metadata = paymentInfo.metadata || {};[m
+ [m
+[31m-  // Os metadados trazem a lista detalhada de itens, incluindo os sabores[m
+[31m-  // escolhidos nos combos. Quando disponível, é a fonte mais rica.[m
+   const itensMeta = Array.isArray(metadata.order_items)[m
+     ? metadata.order_items.map(i => ({[m
+         titulo: i.titulo || i.title || null,[m
+[36m@@ -61,11 +46,9 @@[m [mfunction extrairDadosPedido(paymentInfo) {[m
+   if (externalReference) {[m
+     const valor = String(externalReference).trim();[m
+ [m
+[31m-    // Tenta interpretar como JSON estruturado.[m
+     if (valor.startsWith('{')) {[m
+       try {[m
+         const dados = JSON.parse(valor);[m
+[31m-        // Normaliza os itens (podem vir como {id,t,q} ou {id,q}).[m
+         const itensRef = Array.isArray(dados.items)[m
+           ? dados.items.map(i => ({[m
+               titulo: i.t || i.titulo || null,[m
+[36m@@ -85,7 +68,6 @@[m [mfunction extrairDadosPedido(paymentInfo) {[m
+       }[m
+     }[m
+ [m
+[31m-    // Caso contrário, trata como telefone (compatibilidade com fluxo antigo).[m
+     return {[m
+       phone: valor,[m
+       nome: metadata.customer_name || null,[m
+[36m@@ -128,11 +110,7 @@[m [mfunction montarMensagemConfirmacao({ nome, ref, total, endereco }) {[m
+ router.post('/webhook/mercadopago', async (req, res) => {[m
+   try {[m
+     // 1) Só nos interessam notificações de PAGAMENTO.[m
+[31m-    // O Mercado Pago também envia avisos de outros tipos (ex.: 'merchant_order',[m
+[31m-    // 'plan', 'subscription'). Sem este filtro, esses avisos geravam pedidos[m
+[31m-    // falsos ("Cliente: não informado").[m
+[31m-    const tipo =[m
+[31m-      req.body?.type || req.query?.type || req.query?.topic || null;[m
+[32m+[m[32m    const tipo = req.body?.type || req.query?.type || req.query?.topic || null;[m
+     if (tipo && tipo !== 'payment') {[m
+       console.log(`Webhook ignorado (tipo: ${tipo})`);[m
+       return res.status(200).send('Ignorado.');[m
+[36m@@ -145,71 +123,79 @@[m [mrouter.post('/webhook/mercadopago', async (req, res) => {[m
+       return res.status(200).send('Sem payment_id.');[m
+     }[m
+ [m
+[31m-    // 2) Evita processar o MESMO pagamento duas vezes (o MP reenvia o webhook).[m
+[32m+[m[32m    // 2) Evita processar o MESMO pagamento duas vezes.[m
+     if (jaProcessado(paymentId)) {[m
+       console.log(`Pagamento ${paymentId} já processado, ignorando duplicado.`);[m
+       return res.status(200).send('Duplicado.');[m
+     }[m
+ [m
+[31m-    const paymentInfo = await buscarPagamento(paymentId);[m
+[31m-    const status = paymentInfo.status;[m
+[32m+[m[32m    // ==========================================[m
+[32m+[m[32m    // MUDANÇA CHAVE: RESPOSTA IMEDIATA[m
+[32m+[m[32m    // ==========================================[m
+[32m+[m[32m    // Respondemos imediatamente para o Mercado Pago com HTTP 200 OK.[m
+[32m+[m[32m    // Isso evita o erro de TIMEOUT e sinaliza recepção com sucesso.[m
+[32m+[m[32m    res.status(200).send('Processando em segundo plano.');[m
+ [m
+[31m-    console.log(`Pagamento ${paymentId}: ${status}`);[m
+[31m-[m
+[31m-    if (status === 'approved') {[m
+[31m-      const { phone, nome, ref, total, itens, endereco } = extrairDadosPedido(paymentInfo);[m
+[31m-[m
+[31m-      // 3) Sem telefone do cliente, este pagamento NÃO veio do nosso fluxo de[m
+[31m-      // pedidos (pode ser teste/cobrança avulsa). Não notifica para evitar[m
+[31m-      // "NOVO PEDIDO PAGO! Cliente: não informado".[m
+[31m-      if (!phone) {[m
+[31m-        console.log('Pagamento aprovado sem telefone do cliente — ignorado (não é pedido do bot).');[m
+[31m-        return res.status(200).send('OK (sem telefone).');[m
+[31m-      }[m
+[31m-[m
+[31m-      // Marca o pagamento como concluído (cancela lembretes pendentes).[m
+[31m-      marcarPago(phone);[m
+[31m-[m
+[31m-      // Confirmação para o CLIENTE.[m
+[31m-      await enviarMensagemWhatsApp(phone, montarMensagemConfirmacao({ nome, ref, total, endereco }));[m
+[31m-      console.log(`Confirmação enviada para ${phone}`);[m
+[31m-[m
+[31m-      // Notificação para o DONO da loja (se ADMIN_PHONE estiver configurado).[m
+[31m-      const donoTelefone = process.env.ADMIN_PHONE;[m
+[31m-      if (donoTelefone) {[m
+[31m-        try {[m
+[31m-          await enviarMensagemWhatsApp([m
+[31m-            donoTelefone,[m
+[31m-            mensagemNotificacaoDono({[m
+[31m-              cliente: phone,[m
+[31m-              nome,[m
+[31m-              itens,[m
+[31m-              total,[m
+[31m-              referencia: ref,[m
+[31m-              endereco,[m
+[31m-            })[m
+[31m-          );[m
+[31m-          console.log(`Notificação de pedido enviada ao dono (${donoTelefone})`);[m
+[31m-        } catch (e) {[m
+[31m-          console.error('Erro ao notificar o dono:', e.message);[m
+[32m+[m[32m    // Executamos a lógica pesada (buscar pagamento e notificar) de forma assíncrona[m
+[32m+[m[32m    // em segundo plano (background job), sem travar a resposta da requisição.[m
+[32m+[m[32m    (async () => {[m
+[32m+[m[32m      try {[m
+[32m+[m[32m        const paymentInfo = await buscarPagamento(paymentId);[m
+[32m+[m[32m        const status = paymentInfo.status;[m
+[32m+[m
+[32m+[m[32m        console.log(`[Segundo Plano] Pagamento ${paymentId}: ${status}`);[m
+[32m+[m
+[32m+[m[32m        if (status === 'approved') {[m
+[32m+[m[32m          const { phone, nome, ref, total, itens, endereco } = extrairDadosPedido(paymentInfo);[m
+[32m+[m
+[32m+[m[32m          if (!phone) {[m
+[32m+[m[32m            console.log('[Segundo Plano] Pagamento aprovado sem telefone do cliente — ignorado.');[m
+[32m+[m[32m            return;[m
+[32m+[m[32m          }[m
+[32m+[m
+[32m+[m[32m          // Marca o pagamento como concluído (cancel
