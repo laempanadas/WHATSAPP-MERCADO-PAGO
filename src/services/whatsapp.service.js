@@ -50,8 +50,8 @@ export async function enviarBotaoUrlWhatsApp(telefone, { corpo, textoBotao, url,
     action: {
       buttons: [
         {
-          type: 'url',
-          title: String(textoBotao).slice(0, 20),
+          type: 'cta_url',
+          text: String(textoBotao).slice(0, 20),
           url,
         },
       ],
