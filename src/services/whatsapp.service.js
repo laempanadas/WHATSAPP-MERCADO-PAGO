@@ -1,6 +1,6 @@
 import { PHONE_NUMBER_ID, WA_TOKEN } from '../config/whatsapp.js';
 
-export async function enviarMensagemWhatsApp(telefone, mensagem) {
+export async function enviarMensagemWhatsApp(telefone, message) {
   const response = await fetch(`https://graph.facebook.com/v25.0/${PHONE_NUMBER_ID}/messages`, {
     method: 'POST',
     headers: {
@@ -12,7 +12,7 @@ export async function enviarMensagemWhatsApp(telefone, mensagem) {
       to: telefone,
       type: 'text',
       text: {
-        body: mensagem
+        body: message
       }
     })
   });
@@ -44,19 +44,35 @@ export async function enviarMensagemWhatsApp(telefone, mensagem) {
  * @param {string} [opcoes.rodape] - Texto pequeno opcional no rodapé.
  */
 export async function enviarBotaoUrlWhatsApp(telefone, { corpo, textoBotao, url, rodape }) {
+  
+  // ===========================================================================
+  // ⚡ BLOCO DE CÓDIGO ALTERADO (INÍCIO)
+  // ===========================================================================
+  // 
+  // ANTES (Com erro):
+  //   O código usava type: 'button' e tentava colocar um botão de link dentro do 
+  //   array 'action.buttons' usando a chave inválida "text". Isso gerava o erro 
+  //   "Unexpected key 'text'".
+  //
+  // DEPOIS (Corrigido):
+  //   - Mudamos o 'type' principal do objeto interativo para 'cta_url'.
+  //   - Reestruturamos o 'action' para usar 'name: cta_url' e o objeto 'parameters'.
+  //   - O texto do botão agora fica mapeado como 'display_text' dentro de 'parameters'.
+  //
   const interactive = {
-    type: 'button',
+    type: 'cta_url', // Alterado: de 'button' para 'cta_url' para suportar links externos
     body: { text: corpo },
     action: {
-      buttons: [
-        {
-          type: 'cta_url',
-          text: String(textoBotao).slice(0, 20),
-          url,
-        },
-      ],
-    },
+      name: 'cta_url', // Define que a ação deste botão interativo é abrir um link (URL)
+      parameters: {
+        display_text: String(textoBotao).slice(0, 20), // O texto que aparece no botão (Máx 20 caracteres)
+        url: url // O link de pagamento do Mercado Pago que o botão vai abrir
+      }
+    }
   };
+  // ===========================================================================
+  // ⚡ BLOCO DE CÓDIGO ALTERADO (FIM)
+  // ===========================================================================
 
   if (rodape) {
     interactive.footer = { text: rodape };
