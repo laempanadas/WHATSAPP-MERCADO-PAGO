@@ -1,0 +1,319 @@
+@baseUrl = http://localhost:8080
+
+###
+# 🏥 Health Check - Verificar se servidor está vivo
+GET {{baseUrl}}/health
+
+
+###
+# ✅ Webhook Validação GET (Meta envia para validar servidor)
+GET {{baseUrl}}/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=seu_token_aqui&hub.challenge=test_challenge_123
+
+
+###
+# 💬 Webhook POST - Mensagem de Texto "oi"
+POST {{baseUrl}}/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "123456",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "messages": [
+              {
+                "from": "5511997088839",
+                "id": "wamid.123456",
+                "timestamp": "1699564000",
+                "text": {
+                  "body": "oi"
+                },
+                "type": "text"
+              }
+            ],
+            "contacts": [
+              {
+                "profile": {
+                  "name": "João"
+                },
+                "wa_id": "5511997088839"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
+
+
+###
+# 💬 Webhook POST - Mensagem de Texto "cardápio"
+POST {{baseUrl}}/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "123456",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "messages": [
+              {
+                "from": "5511997088839",
+                "id": "wamid.123456",
+                "timestamp": "1699564000",
+                "text": {
+                  "body": "cardápio"
+                },
+                "type": "text"
+              }
+            ],
+            "contacts": [
+              {
+                "profile": {
+                  "name": "João"
+                },
+                "wa_id": "5511997088839"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
+
+
+###
+# 💬 Webhook POST - Mensagem de Texto "2 carne"
+POST {{baseUrl}}/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "123456",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "messages": [
+              {
+                "from": "5511997088839",
+                "id": "wamid.123456",
+                "timestamp": "1699564000",
+                "text": {
+                  "body": "2 carne"
+                },
+                "type": "text"
+              }
+            ],
+            "contacts": [
+              {
+                "profile": {
+                  "name": "João"
+                },
+                "wa_id": "5511997088839"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
+
+
+###
+# 💬 Webhook POST - Confirmação "sim"
+POST {{baseUrl}}/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "123456",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "messages": [
+              {
+                "from": "5511997088839",
+                "id": "wamid.123456",
+                "timestamp": "1699564000",
+                "text": {
+                  "body": "sim"
+                },
+                "type": "text"
+              }
+            ],
+            "contacts": [
+              {
+                "profile": {
+                  "name": "João"
+                },
+                "wa_id": "5511997088839"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
+
+
+###
+# 🛒 Webhook POST - Pedido do Catálogo
+POST {{baseUrl}}/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "123456",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "orders": [
+              {
+                "catalog_id": "12345",
+                "product_items": [
+                  {
+                    "product_retailer_id": "carne",
+                    "quantity": 2,
+                    "item_price": 14.00,
+                    "currency": "BRL"
+                  }
+                ],
+                "text": "Quero 2 empanadas de carne",
+                "from": "5511997088839",
+                "id": "order_123",
+                "timestamp": "1699564000"
+              }
+            ],
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Maria"
+                },
+                "wa_id": "5511997088839"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
+
+
+###
+# 🛒 Webhook POST - Pedido do Catálogo (múltiplos itens)
+POST {{baseUrl}}/webhook/whatsapp
+Content-Type: application/json
+
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "123456",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "orders": [
+              {
+                "catalog_id": "12345",
+                "product_items": [
+                  {
+                    "product_retailer_id": "carne",
+                    "quantity": 2,
+                    "item_price": 14.00,
+                    "currency": "BRL"
+                  },
+                  {
+                    "product_retailer_id": "cheeseburger",
+                    "quantity": 1,
+                    "item_price": 14.00,
+                    "currency": "BRL"
+                  }
+                ],
+                "text": "2 carne e 1 cheeseburger",
+                "from": "5511997088839",
+                "id": "order_123",
+                "timestamp": "1699564000"
+              }
+            ],
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Maria"
+                },
+                "wa_id": "5511997088839"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
+
+
+###
+# 💳 Webhook Mercado Pago - Pagamento Aprovado
+POST {{baseUrl}}/webhook/mercadopago
+Content-Type: application/json
+
+{
+  "id": 1234567890,
+  "type": "payment",
+  "data": {
+    "id": "987654321"
+  },
+  "action": "payment.approved"
+}
+
+
+###
+# 💳 Webhook Mercado Pago - Pagamento Recusado
+POST {{baseUrl}}/webhook/mercadopago
+Content-Type: application/json
+
+{
+  "id": 1234567890,
+  "type": "payment",
+  "data": {
+    "id": "987654321"
+  },
+  "action": "payment.rejected"
+}
+
+
+###
+# 💳 Webhook Mercado Pago - Pagamento Pendente
+POST {{baseUrl}}/webhook/mercadopago
+Content-Type: application/json
+
+{
+  "id": 1234567890,
+  "type": "payment",
+  "data": {
+    "id": "987654321"
+  },
+  "action": "payment.pending"
+}

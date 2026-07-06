@@ -36,7 +36,13 @@ export function mensagemCardapio() {
 
  return (
   `🥟 *${NOME_LOJA}* 🇦🇷\n\n` +
-  `Olá! Bem‑vindo(a). Confira nosso cardápio abaixo:\n\n` +
+  `Olá! Bem‑vindo(a). COMUNICADO IMPORTANTE
+
+Prezados clientes,
+
+Informamos que hoje, dia 06/07/2026, não estamos realizando atendimentos.
+
+Retornaremos com as nossas atividades normais amanhã. Contamos com a sua compreensão e aguardamos o seu contato no próximo dia útil!\n\n` +
   `${blocos}\n\n` +
   `📝 *Como pedir (leia com atenção):*\n` +
   `1) Escreva seu pedido aqui com quantidade e sabor.\n` +
