@@ -46,6 +46,7 @@ Configure as seguintes variáveis no Google Cloud Run:
 | `WA_TOKEN` | Token da WhatsApp Business API | `EAAxxxxxx...` |
 | `PHONE_NUMBER_ID` | ID do número do WhatsApp | `123456789` |
 | `VERIFY_TOKEN` | Token de verificação do webhook | `meu_token_secreto` |
+| `COMMERCE_SETTINGS_ENABLED` | Habilita a aplicação automática de catálogo/carrinho no startup | `true` |
 | `BASE_URL` | URL pública do Cloud Run | `https://seu-app.run.app` |
 | `ADMIN_PHONE` | *(opcional)* Telefone do dono para notificações | `5511959480047` |
 
@@ -68,6 +69,11 @@ Veja `.env.example` para referência.
 2. Vá em **Webhooks** → Adicionar
 3. URL: `https://seu-app.run.app/webhook/mercadopago`
 4. Eventos: `payment` ✅
+
+#### Meta Commerce / Catálogo
+1. No Meta Business Suite, confirme que o número comercial está associado à conta de negócios e ao catálogo desejado.
+2. O app agora tenta enviar `is_catalog_visible=true` e `is_cart_enabled=true` para o endpoint `whatsapp_commerce_settings` do número configurado no startup.
+3. Se quiser validar manualmente, use a documentação oficial do Meta para consultar as configurações do número comercial e confirmar que o catálogo ficou visível.
 
 ---
 

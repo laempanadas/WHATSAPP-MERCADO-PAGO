@@ -4,6 +4,7 @@ import webhookWhatsAppRoutes from './routes/webhook.whatsapp.js';
 import webhookMercadoPagoRoutes from './routes/webhook.mercadopago.js';
 import checkoutRoutes from './routes/checkout.js';
 import { iniciarAgendadorLembretes } from './services/lembrete.service.js';
+import { aplicarConfiguracaoCommercePadrao } from './services/commerce-settings.service.js';
 
 const app = express();
 
@@ -28,5 +29,9 @@ app.use((err, req, res, next) => {
 // e de carrinho abandonado. É idempotente: só cria um intervalo, mesmo que
 // o módulo seja importado mais de uma vez.
 iniciarAgendadorLembretes();
+
+// Garante que o catálogo e o carrinho fiquem visíveis para o número comercial
+// configurado no WhatsApp Business Account.
+aplicarConfiguracaoCommercePadrao();
 
 export default app;
