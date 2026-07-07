@@ -36,13 +36,11 @@ export function mensagemCardapio() {
 
  return (
   `🥟 *${NOME_LOJA}* 🇦🇷\n\n` +
-  `Olá! Bem‑vindo(a). COMUNICADO IMPORTANTE
+  `Olá! Bem‑vindo(a). Bateu a fome? Estamos abertos nos seguintes horários:
+• Seg à Qui e Dom: 18h às 22h
+• Sex e Sáb: 18h às 23h
 
-Prezados clientes,
-
-Informamos que hoje, dia 06/07/2026, não estamos realizando atendimentos.
-
-Retornaremos com as nossas atividades normais amanhã. Contamos com a sua compreensão e aguardamos o seu contato no próximo dia útil!\n\n` +
+Dê uma olhada no nosso cardápio completo e escolha o seu favorito de hoje! 😋\n\n` +
   `${blocos}\n\n` +
   `📝 *Como pedir (leia com atenção):*\n` +
   `1) Escreva seu pedido aqui com quantidade e sabor.\n` +
