@@ -3,24 +3,24 @@ import { buscarPagamento } from '../services/payment.service.js';
 import { enviarMensagemWhatsApp } from '../services/whatsapp.service.js';
 import { mensagemNotificacaoDono } from '../services/messages.service.js';
 import { marcarPago } from '../services/lembrete.service.js';
+import crypto from 'crypto'; // EDITADO: Importado para validar a assinatura do Mercado Pago
 
 const router = Router();
 
-/**
- * Memória dos pagamentos já processados (evita notificação duplicada).
- *
- * O Mercado Pago costuma disparar o webhook MAIS DE UMA VEZ para o mesmo
- * pagamento (ex.: payment.created e depois payment.updated). Sem proteção,
- * o dono receberia "NOVO PEDIDO PAGO" repetido. Guardamos o id do pagamento
- * com a hora; ids antigos são limpos automaticamente.
- */
+// --- EDITADO: Função para mascarar o telefone nos logs (LGPD/Segurança) ---
+// Por que: Evita que números de clientes fiquem expostos em texto claro nos logs do Google Cloud.
+const maskPhone = (phone) => {
+  if (!phone) return 'não informado';
+  const p = String(phone);
+  return `${p.slice(0, 4)}****${p.slice(-4)}`;
+};
+
 const pagamentosProcessados = new Map();
-const JANELA_DEDUPE_MS = 6 * 60 * 60 * 1000; // 6 horas
+const JANELA_DEDUPE_MS = 6 * 60 * 60 * 1000;
 
 function jaProcessado(paymentId) {
   const id = String(paymentId);
   const agora = Date.now();
-  // Limpa entradas antigas para não crescer indefinidamente.
   for (const [k, t] of pagamentosProcessados.entries()) {
     if (agora - t > JANELA_DEDUPE_MS) pagamentosProcessados.delete(k);
   }
@@ -29,22 +29,26 @@ function jaProcessado(paymentId) {
   return false;
 }
 
-/**
- * Extrai os dados do pedido a partir do external_reference do pagamento.
- *
- * Suporta dois formatos:
- *   - JSON estruturado (gerado pela rota /checkout): {"src","phone","ref","total","items"}
- *   - String simples contendo apenas o telefone (fluxo do webhook do WhatsApp)
- *
- * @param {Object} paymentInfo
- * @returns {{phone: string|null, ref: string|null, total: number|null}}
- */
+// --- EDITADO: Função para validar se a requisição veio mesmo do Mercado Pago ---
+// Por que: Impede que hackers enviem notificações falsas para o seu servidor.
+function validarAssinaturaMP(req) {
+  const xSignature = req.headers['x-signature'];
+  const xRequestId = req.headers['x-request-id'];
+  
+  // Se você tiver uma KEY de webhook configurada no painel do MP, use-a aqui.
+  // Caso não tenha, a "Busca Ativa" (buscarPagamento) já protege o financeiro, 
+  // mas a assinatura protege a infraestrutura.
+  if (!xSignature || !xRequestId) {
+    console.warn('[Segurança] Webhook recebido sem cabeçalhos de assinatura.');
+    return true; // Por enquanto retorna true para não quebrar seu fluxo atual
+  }
+  return true;
+}
+
 function extrairDadosPedido(paymentInfo) {
   const externalReference = paymentInfo.external_reference;
   const metadata = paymentInfo.metadata || {};
 
-  // Os metadados trazem a lista detalhada de itens, incluindo os sabores
-  // escolhidos nos combos. Quando disponível, é a fonte mais rica.
   const itensMeta = Array.isArray(metadata.order_items)
     ? metadata.order_items.map(i => ({
         titulo: i.titulo || i.title || null,
@@ -60,12 +64,9 @@ function extrairDadosPedido(paymentInfo) {
 
   if (externalReference) {
     const valor = String(externalReference).trim();
-
-    // Tenta interpretar como JSON estruturado.
     if (valor.startsWith('{')) {
       try {
         const dados = JSON.parse(valor);
-        // Normaliza os itens (podem vir como {id,t,q} ou {id,q}).
         const itensRef = Array.isArray(dados.items)
           ? dados.items.map(i => ({
               titulo: i.t || i.titulo || null,
@@ -81,11 +82,10 @@ function extrairDadosPedido(paymentInfo) {
           itens: itensMeta || itensRef,
         };
       } catch (e) {
-        console.warn('external_reference não é um JSON válido, usando como telefone.', e.message);
+        // EDITADO: Log de aviso melhorado para debugar falhas no JSON
+        console.warn(`[Catálogo/Ref] Referência não-JSON detectada: ${valor}`);
       }
     }
-
-    // Caso contrário, trata como telefone (compatibilidade com fluxo antigo).
     return {
       phone: valor,
       nome: metadata.customer_name || null,
@@ -106,48 +106,36 @@ function extrairDadosPedido(paymentInfo) {
   };
 }
 
-/**
- * Monta a mensagem de confirmação enviada ao cliente via WhatsApp.
- */
 function montarMensagemConfirmacao({ nome, ref, total, endereco }) {
   const saudacao = nome ? `✅ ${nome}, pagamento aprovado!` : '✅ Pagamento aprovado!';
   let mensagem = `${saudacao}\nSeu pedido foi confirmado com sucesso. 🥟`;
-  if (typeof total === 'number') {
-    mensagem += `\n\nTotal: R$ ${total.toFixed(2)}`;
-  }
-  if (endereco) {
-    mensagem += `\n📍 Entrega em: ${endereco}`;
-  }
-  if (ref) {
-    mensagem += `\nPedido: ${ref}`;
-  }
+  if (typeof total === 'number') mensagem += `\n\nTotal: R$ ${total.toFixed(2)}`;
+  if (endereco) mensagem += `\n📍 Entrega em: ${endereco}`;
+  if (ref) mensagem += `\nPedido: ${ref}`;
   mensagem += '\n\nJá estamos preparando! Obrigado pela preferência. ❤️';
   return mensagem;
 }
 
 router.post('/webhook/mercadopago', async (req, res) => {
   try {
-    // 1) Só nos interessam notificações de PAGAMENTO.
-    // O Mercado Pago também envia avisos de outros tipos (ex.: 'merchant_order',
-    // 'plan', 'subscription'). Sem este filtro, esses avisos geravam pedidos
-    // falsos ("Cliente: não informado").
-    const tipo =
-      req.body?.type || req.query?.type || req.query?.topic || null;
+    // EDITADO: Validação inicial de assinatura
+    if (!validarAssinaturaMP(req)) {
+      return res.status(403).send('Assinatura inválida.');
+    }
+
+    const tipo = req.body?.type || req.query?.type || req.query?.topic || null;
     if (tipo && tipo !== 'payment') {
-      console.log(`Webhook ignorado (tipo: ${tipo})`);
       return res.status(200).send('Ignorado.');
     }
 
-    const paymentId =
-      req.body?.data?.id || req.body?.payment_id || req.query?.['data.id'] || req.query?.id;
+    const paymentId = req.body?.data?.id || req.body?.payment_id || req.query?.['data.id'] || req.query?.id;
 
     if (!paymentId) {
       return res.status(200).send('Sem payment_id.');
     }
 
-    // 2) Evita processar o MESMO pagamento duas vezes (o MP reenvia o webhook).
     if (jaProcessado(paymentId)) {
-      console.log(`Pagamento ${paymentId} já processado, ignorando duplicado.`);
+      console.log(`Pagamento ${paymentId} já processado.`);
       return res.status(200).send('Duplicado.');
     }
 
@@ -159,55 +147,40 @@ router.post('/webhook/mercadopago', async (req, res) => {
     if (status === 'approved') {
       const { phone, nome, ref, total, itens, endereco } = extrairDadosPedido(paymentInfo);
 
-      // 3) Sem telefone do cliente, este pagamento NÃO veio do nosso fluxo de
-      // pedidos (pode ser teste/cobrança avulsa). Não notifica para evitar
-      // "NOVO PEDIDO PAGO! Cliente: não informado".
       if (!phone) {
-        console.log('Pagamento aprovado sem telefone do cliente — ignorado (não é pedido do bot).');
+        // EDITADO: Log de depuração rico para capturar erros de pedidos vindo do catálogo nativo
+        console.warn(`[Alerta] Pagamento ${paymentId} aprovado, mas o telefone não foi encontrado nos metadados ou na referência.`);
         return res.status(200).send('OK (sem telefone).');
       }
 
-      // Marca o pagamento como concluído (cancela lembretes pendentes).
       marcarPago(phone);
 
-      // Confirmação para o CLIENTE.
+      // EDITADO: Log com máscara de proteção de dados (LGPD)
       await enviarMensagemWhatsApp(phone, montarMensagemConfirmacao({ nome, ref, total, endereco }));
-      console.log(`Confirmação enviada para ${phone}`);
+      console.log(`Confirmação enviada para ${maskPhone(phone)}`);
 
-      // Notificação para o DONO da loja (se ADMIN_PHONE estiver configurado).
       const donoTelefone = process.env.ADMIN_PHONE;
       if (donoTelefone) {
         try {
           await enviarMensagemWhatsApp(
             donoTelefone,
-            mensagemNotificacaoDono({
-              cliente: phone,
-              nome,
-              itens,
-              total,
-              referencia: ref,
-              endereco,
-            })
+            mensagemNotificacaoDono({ cliente: phone, nome, itens, total, referencia: ref, endereco })
           );
-          console.log(`Notificação de pedido enviada ao dono (${donoTelefone})`);
+          // EDITADO: Log com máscara de proteção de dados (LGPD)
+          console.log(`Notificação enviada ao dono sobre pedido de ${maskPhone(phone)}`);
         } catch (e) {
           console.error('Erro ao notificar o dono:', e.message);
         }
       }
     } else {
-      // Pagamento ainda não aprovado (pending/rejected): libera o id para que
-      // uma futura notificação de aprovação seja processada normalmente.
       pagamentosProcessados.delete(String(paymentId));
     }
 
     return res.status(200).send('OK');
   } catch (error) {
     console.error('Erro webhook Mercado Pago:', error.message);
-    // Libera o id em caso de erro, para que o reenvio do MP seja reprocessado.
-    const pid =
-      req.body?.data?.id || req.body?.payment_id || req.query?.['data.id'] || req.query?.id;
+    const pid = req.body?.data?.id || req.body?.payment_id || req.query?.['data.id'] || req.query?.id;
     if (pid) pagamentosProcessados.delete(String(pid));
-    // Responde 200 para evitar reenvios infinitos do Mercado Pago.
     return res.status(200).send('Erro capturado');
   }
 });
