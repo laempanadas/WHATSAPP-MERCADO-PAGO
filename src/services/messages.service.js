@@ -39,13 +39,6 @@ export function mensagemCardapio() {
   `Olá! Bem‑vindo(a). Bateu a fome? Estamos abertos nos seguintes horários:
 • Seg à Qui e Dom: 18h às 22h
 • Sex e Sáb: 18h às 23h
-Passando para avisar que hoje estamos recarregando as energias! ⚡
-
-🗓️ Voltamos com o forno a todo vapor nesta TERÇA-FEIRA!
-⏰ Atendimento das 18h às 22h.
-
-Já vai pensando nos seus sabores favoritos e até terça! 👋😋
-
 Dê uma olhada no nosso cardápio completo e escolha o seu favorito de hoje! 😋\n\n` +
   `${blocos}\n\n` +
   `📝 *Como pedir (leia com atenção):*\n` +
